@@ -475,39 +475,28 @@ class KedsApp {
         <!-- PAYMENT GATEWAY MODAL VIEW STRICTLY PER REF_PAYMENT -->
         ${this.isPaymentModalOpen ? this.renderPaymentGatewayView() : ''}
 
-        <!-- CLEANED FLOATING HOTBAR CAPSULE (4 ITEMS: CATALOG, SEARCH, CART, ABOUT) -->
-        ${(this.activeTab !== 'cart' && this.activeTab !== 'checkout' && this.activeTab !== 'success') ? `
-          <nav class="floating-island-capsule font-body">
-            <button class="island-nav-item ${this.activeTab === 'catalog' ? 'active' : ''}" data-tab="catalog" aria-label="Каталог">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-                <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-                <rect x="14" y="14" width="7" height="7" rx="1.5"/>
-                <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-              </svg>
+        <!-- FLOATING HOTBAR CAPSULE STRICTLY MATCHING REF_HOTBAR (LEVELS | STYLES | SEARCH | SELL | PROFILE) -->
+        ${(this.activeTab !== 'checkout' && this.activeTab !== 'success') ? `
+          <nav class="floating-island-capsule font-body" aria-label="Hotbar Navigation">
+            <div class="hotbar-dots-indicator" aria-hidden="true">
+              <span></span>
+              <span></span>
+            </div>
+            <button class="island-nav-item ${this.activeTab === 'catalog' ? 'active' : ''}" data-tab="catalog" aria-label="LEVELS">
+              <span>LEVELS</span>
             </button>
-            <button class="island-nav-item" id="hotbar-search-btn" aria-label="Поиск">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="7"/>
-                <path d="M16 16L20 20"/>
-              </svg>
+            <button class="island-nav-item" id="hotbar-styles-btn" aria-label="STYLES">
+              <span>STYLES</span>
             </button>
-            <button class="island-nav-item ${this.activeTab === 'cart' ? 'active' : ''}" data-tab="cart" aria-label="Корзина">
-              <div class="icon-wrapper font-body">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M6 2L3 6V20C3 20.5304 3.21071 21.0391 3.58579 21.4142C3.96086 21.7893 4.46957 22 5 22H19C19.5304 22 20.0391 21.7893 20.4142 21.4142C20.7893 21.0391 21 20.5304 21 20V6L18 2H6Z"/>
-                  <path d="M3 6H21"/>
-                  <path d="M16 10C16 12.2091 14.2091 14 12 14C9.79086 14 8 12.2091 8 10"/>
-                </svg>
-                ${cartCount > 0 ? `<span class="micro-badge tabular-nums font-body">${cartCount}</span>` : ''}
-              </div>
+            <button class="island-nav-item" id="hotbar-search-btn" aria-label="SEARCH">
+              <span>SEARCH</span>
             </button>
-            <button class="island-nav-item ${this.activeTab === 'about' ? 'active' : ''}" data-tab="about" aria-label="О приложении">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="16" x2="12" y2="12"/>
-                <line x1="12" y1="8" x2="12.01" y2="8"/>
-              </svg>
+            <button class="island-nav-item ${this.activeTab === 'cart' ? 'active' : ''}" data-tab="cart" aria-label="SELL">
+              <span class="hotbar-tab-label">SELL</span>
+              ${cartCount > 0 ? `<span class="micro-badge tabular-nums font-body">${cartCount}</span>` : ''}
+            </button>
+            <button class="island-nav-item ${this.activeTab === 'about' ? 'active' : ''}" data-tab="about" aria-label="PROFILE">
+              <span>PROFILE</span>
             </button>
           </nav>
         ` : ''}
@@ -1980,11 +1969,21 @@ class KedsApp {
       });
     });
 
-    // Hotbar search glass button
+    // Hotbar search & styles buttons
     const hotbarSearchBtn = document.getElementById('hotbar-search-btn');
     if (hotbarSearchBtn) {
       hotbarSearchBtn.addEventListener('click', () => {
         this.openLiveSearch();
+      });
+    }
+
+    const hotbarStylesBtn = document.getElementById('hotbar-styles-btn');
+    if (hotbarStylesBtn) {
+      hotbarStylesBtn.addEventListener('click', () => {
+        if (this.activeTab !== 'catalog') {
+          this.activeTab = 'catalog';
+        }
+        this.openFilterSheet();
       });
     }
 

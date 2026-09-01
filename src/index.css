@@ -2325,70 +2325,86 @@ h1, h2, h3, h4, h5, h6, .font-display {
   background-color: #000000 !important;
 }
 
-/* STRICT FLAT FLOATING NAVIGATION BAR */
+/* FLOATING HOTBAR CAPSULE STRICTLY MATCHING REF_HOTBAR */
 .floating-island-capsule {
   position: fixed;
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 40;
-  width: fit-content !important;
-  padding: 10px 20px;
-  background-color: rgba(20, 20, 20, 0.90) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.10) !important;
-  border-radius: 9999px !important;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+  width: calc(100% - 32px) !important;
+  max-width: 440px !important;
+  padding: 16px 20px 14px 20px !important;
+  background-color: rgba(14, 14, 14, 0.90) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.75) !important;
   display: flex;
   align-items: center;
-  gap: 24px;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.hotbar-dots-indicator {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.hotbar-dots-indicator span {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.85);
 }
 
 .island-nav-item {
   position: relative;
   background: transparent;
   border: none;
-  color: #737373;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: 'Golos Text', 'Unbounded', -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  padding: 4px;
-  transition: color 0.15s ease;
+  padding: 4px 2px;
+  transition: color 0.15s ease, opacity 0.15s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .island-nav-item:hover, .island-nav-item:active {
   color: #FFFFFF !important;
 }
 
-.island-nav-item svg {
-  width: 19px;
-  height: 19px;
-  stroke-width: 2px !important;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 .island-nav-item.active {
   color: #FFFFFF !important;
+  font-weight: 800 !important;
 }
 
-.icon-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.hotbar-tab-label {
+  display: inline-block;
 }
 
 .micro-badge {
   position: absolute;
   top: -6px !important;
-  right: -6px !important;
+  right: -8px !important;
   width: 14px !important;
   height: 14px !important;
   border-radius: 50% !important;
-  background-color: #FF5500 !important; /* Fixed #FF5500 orange circle */
+  background-color: #FF5500 !important;
   color: #FFFFFF !important;
   font-size: 9px !important;
   font-weight: 700 !important;
