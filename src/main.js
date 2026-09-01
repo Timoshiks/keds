@@ -56,6 +56,9 @@ class KedsApp {
     this.cardCvc = '';
     this.cardHolder = '';
 
+    // Info Sheet Modal state (faq, privacy, terms)
+    this.activeInfoSheet = null; // 'faq', 'privacy', 'terms'
+
     // Filter states
     this.selectedBrands = urlParams.get('brands') ? urlParams.get('brands').split(',') : [];
     if (urlParams.get('brand') && urlParams.get('brand') !== 'Все' && !this.selectedBrands.includes(urlParams.get('brand'))) {
@@ -82,19 +85,8 @@ class KedsApp {
     this.providerFilter = urlParams.get('provider') || 'all';
     this.branchSearchQuery = '';
 
-    // Mock initial cart items (empty if ?empty=true)
-    this.cartItems = urlParams.get('empty') === 'true' ? [] : [
-      {
-        product: this.products[0], // Travis Scott Canary
-        selectedSize: '42 EU',
-        quantity: 1,
-      },
-      {
-        product: this.products[5], // Asics Gel-Kayano 14
-        selectedSize: '44 EU',
-        quantity: 1,
-      }
-    ];
+    // Empty cart items by default
+    this.cartItems = [];
 
     const openId = urlParams.get('open');
     const autoProduct = openId ? this.products.find(p => p.id === openId) : null;
@@ -126,6 +118,7 @@ class KedsApp {
       }, 900);
     }
 
+    window.kedsAppInstance = this;
     this.init();
   }
 
@@ -205,6 +198,7 @@ class KedsApp {
     this.maxPrice = this.draftMaxPrice;
     this.selectedSort = this.draftSort;
     this.isFilterSheetOpen = false;
+    this.activeProduct = null;
     this.updateUrl();
     this.render();
   }
@@ -222,6 +216,7 @@ class KedsApp {
     this.draftSort = 'default';
     this.searchQuery = '';
     this.isFilterSheetOpen = false;
+    this.activeProduct = null;
     this.updateUrl();
     this.render();
   }
@@ -248,8 +243,16 @@ class KedsApp {
 
   setTab(tab) {
     this.activeTab = tab;
+    this.activeProduct = null;
     this.updateUrl();
     this.render();
+  }
+
+  openProductSheetById(id) {
+    const product = this.products.find(p => p.id === id);
+    if (product) {
+      this.openProductSheet(product);
+    }
   }
 
   openProductSheet(product) {
@@ -277,7 +280,11 @@ class KedsApp {
         quantity: 1,
       });
     }
-    this.closeProductSheet();
+    this.activeProduct = null;
+    this.selectedSize = null;
+    this.activeSlide = 0;
+    this.updateUrl();
+    this.render();
   }
 
   removeFromCart(index) {
@@ -285,8 +292,11 @@ class KedsApp {
     this.render();
   }
 
-  openPaymentGateway() {
-    this.orderId = `TR-${Math.floor(10000 + Math.random() * 90000)}`;
+  openPaymentGateway(mode = 'pay') {
+    this.paymentModalMode = mode;
+    if (!this.orderId) {
+      this.orderId = `TR-${Math.floor(10000 + Math.random() * 90000)}`;
+    }
     this.isPaymentModalOpen = true;
     this.isPaymentProcessing = false;
     this.updateUrl();
@@ -341,25 +351,29 @@ class KedsApp {
   }
 
   updateUrl() {
-    const params = new URLSearchParams();
-    if (this.activeTab !== 'catalog') params.set('tab', this.activeTab);
-    if (this.selectedBrands.length > 0) params.set('brands', this.selectedBrands.join(','));
-    if (this.selectedFilterSize !== 'Все') params.set('size', this.selectedFilterSize);
-    if (this.selectedSort !== 'default') params.set('sort', this.selectedSort);
-    if (this.minPrice > 10000) params.set('minPrice', this.minPrice.toString());
-    if (this.maxPrice < 100000) params.set('maxPrice', this.maxPrice.toString());
-    if (this.searchQuery) params.set('search', this.searchQuery);
-    if (this.isLiveSearchOpen) params.set('liveSearch', 'true');
-    if (this.isFilterSheetOpen) params.set('filterSheet', 'true');
-    if (this.isPaymentModalOpen) params.set('payment', 'true');
-    if (this.paymentMethod !== 'card') params.set('paymentMethod', this.paymentMethod);
-    if (this.activeProduct) params.set('open', this.activeProduct.id);
-    if (this.orderId) params.set('orderId', this.orderId);
-    if (this.isBranchDrawerOpen) params.set('drawer', 'true');
-    if (this.drawerMode !== 'map') params.set('mode', this.drawerMode);
-    if (this.providerFilter !== 'all') params.set('provider', this.providerFilter);
-    const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
-    window.history.replaceState({}, '', newUrl);
+    try {
+      const params = new URLSearchParams();
+      if (this.activeTab !== 'catalog') params.set('tab', this.activeTab);
+      if (this.selectedBrands.length > 0) params.set('brands', this.selectedBrands.join(','));
+      if (this.selectedFilterSize !== 'Все') params.set('size', this.selectedFilterSize);
+      if (this.selectedSort !== 'default') params.set('sort', this.selectedSort);
+      if (this.minPrice > 10000) params.set('minPrice', this.minPrice.toString());
+      if (this.maxPrice < 100000) params.set('maxPrice', this.maxPrice.toString());
+      if (this.searchQuery) params.set('search', this.searchQuery);
+      if (this.isLiveSearchOpen) params.set('liveSearch', 'true');
+      if (this.isFilterSheetOpen) params.set('filterSheet', 'true');
+      if (this.isPaymentModalOpen) params.set('payment', 'true');
+      if (this.paymentMethod !== 'card') params.set('paymentMethod', this.paymentMethod);
+      if (this.activeProduct) params.set('open', this.activeProduct.id);
+      if (this.orderId) params.set('orderId', this.orderId);
+      if (this.isBranchDrawerOpen) params.set('drawer', 'true');
+      if (this.drawerMode !== 'map') params.set('mode', this.drawerMode);
+      if (this.providerFilter !== 'all') params.set('provider', this.providerFilter);
+      const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    } catch (err) {
+      console.warn('URL update suppressed:', err);
+    }
   }
 
   renderSplashScreen() {
@@ -378,8 +392,56 @@ class KedsApp {
     `;
   }
 
+  renderFloatingHotbar() {
+    if (
+      this.activeTab === 'cart' ||
+      this.activeTab === 'checkout' || 
+      this.activeTab === 'success' ||
+      this.isPaymentModalOpen || 
+      this.isBranchDrawerOpen || 
+      this.activeProduct || 
+      this.isFilterSheetOpen || 
+      this.isLiveSearchOpen || 
+      this.activeInfoSheet
+    ) {
+      return '';
+    }
+
+    const cartCount = this.cartItems.reduce((acc, item) => acc + item.quantity, 0);
+
+    const tabs = [
+      { id: 'catalog', label: 'Каталог' },
+      { id: 'search', label: 'Поиск' },
+      { id: 'cart', label: 'Корзина', count: cartCount },
+      { id: 'about', label: 'О приложении' },
+    ];
+
+    return `
+      <!-- UNIFIED FLOATING TAB BAR COMPONENT WITH POSITIONING WRAPPER -->
+      <div class="floating-island-wrapper font-body">
+        <nav class="floating-island-capsule font-body" aria-label="Панель навигации">
+          ${tabs.map(tab => {
+            const isActive = this.activeTab === tab.id;
+            return `
+              <button 
+                class="island-nav-item ${isActive ? 'active' : ''}" 
+                data-tab="${tab.id}" 
+                aria-label="${tab.label}"
+                onclick="window.kedsAppInstance && window.kedsAppInstance.setTab('${tab.id}')"
+              >
+                <span class="hotbar-tab-label font-body">${tab.label}</span>
+                ${(tab.id === 'cart' && tab.count > 0) ? `
+                  <span class="micro-badge tabular-nums font-body">${tab.count}</span>
+                ` : ''}
+              </button>
+            `;
+          }).join('')}
+        </nav>
+      </div>
+    `;
+  }
+
   render() {
-    const cartCount = this.cartItems.length;
     const hasFiltersActive = this.hasActiveFilters();
 
     this.appContainer.innerHTML = `
@@ -453,14 +515,15 @@ class KedsApp {
           </header>
         ` : ''}
 
-        <!-- MAIN VIEW CONTENT -->
+        <!-- MAIN VIEWPORT ROUTER (Catalog | Cart | Checkout | Success | About | Search) -->
         <main class="${this.activeTab === 'catalog' ? 'catalog-content' : 'cart-main-content'}">
           ${this.activeTab === 'catalog' ? this.renderCatalogView() : ''}
           ${this.activeTab === 'cart' ? this.renderGoatCartView() : ''}
           ${this.activeTab === 'checkout' ? this.renderGoatOrderReviewView() : ''}
           ${this.activeTab === 'success' ? this.renderSuccessView() : ''}
           ${this.activeTab === 'about' ? this.renderAboutView() : ''}
-          ${this.activeTab === 'search' || this.activeTab === 'profile' ? this.renderPlaceholderView() : ''}
+          ${this.activeTab === 'search' ? this.renderSearchView() : ''}
+          ${this.activeTab === 'profile' ? this.renderPlaceholderView() : ''}
         </main>
 
         <!-- PRODUCT BOTTOM SHEET MODAL -->
@@ -475,31 +538,11 @@ class KedsApp {
         <!-- PAYMENT GATEWAY MODAL VIEW STRICTLY PER REF_PAYMENT -->
         ${this.isPaymentModalOpen ? this.renderPaymentGatewayView() : ''}
 
-        <!-- FLOATING HOTBAR CAPSULE STRICTLY MATCHING REF_HOTBAR (LEVELS | STYLES | SEARCH | SELL | PROFILE) -->
-        ${(this.activeTab !== 'checkout' && this.activeTab !== 'success') ? `
-          <nav class="floating-island-capsule font-body" aria-label="Hotbar Navigation">
-            <div class="hotbar-dots-indicator" aria-hidden="true">
-              <span></span>
-              <span></span>
-            </div>
-            <button class="island-nav-item ${this.activeTab === 'catalog' ? 'active' : ''}" data-tab="catalog" aria-label="LEVELS">
-              <span>LEVELS</span>
-            </button>
-            <button class="island-nav-item" id="hotbar-styles-btn" aria-label="STYLES">
-              <span>STYLES</span>
-            </button>
-            <button class="island-nav-item" id="hotbar-search-btn" aria-label="SEARCH">
-              <span>SEARCH</span>
-            </button>
-            <button class="island-nav-item ${this.activeTab === 'cart' ? 'active' : ''}" data-tab="cart" aria-label="SELL">
-              <span class="hotbar-tab-label">SELL</span>
-              ${cartCount > 0 ? `<span class="micro-badge tabular-nums font-body">${cartCount}</span>` : ''}
-            </button>
-            <button class="island-nav-item ${this.activeTab === 'about' ? 'active' : ''}" data-tab="about" aria-label="PROFILE">
-              <span>PROFILE</span>
-            </button>
-          </nav>
-        ` : ''}
+        <!-- INFO SHEET MODAL VIEW (FAQ, PRIVACY, TERMS) -->
+        ${this.activeInfoSheet ? this.renderInfoModal() : ''}
+
+        <!-- UNIFIED FLOATING TAB BAR COMPONENT -->
+        ${this.renderFloatingHotbar()}
       </div>
     `;
 
@@ -526,20 +569,20 @@ class KedsApp {
     });
 
     return `
-        <!-- ЕДИНАЯ ШАПКА ПОЛНОЭКРАННОЙ СТРАНИЦЫ -->
-        <div class="flex items-center gap-3 px-4 pt-4 pb-4 border-b border-white/[0.06]" style="display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
-          <button id="back-to-cart-btn" class="w-9 h-9 rounded-full border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors" style="width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: #FFFFFF; background: transparent; cursor: pointer; flex-shrink: 0;" aria-label="Назад">
+        <!-- ЕДИНАЯ ШАПКА ПОЛНОЭКРАННОЙ СТРАНИЦЫ (УНИФИЦИРОВАННАЯ ТИПОГРАФИКА) -->
+        <div class="checkout-header-sticky font-body" style="position: sticky; top: 0; z-index: 30; background-color: #0A0A0A; display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+          <button id="back-to-cart-btn" class="checkout-back-btn font-body" style="position: static; width: 36px; height: 36px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: #FFFFFF; background: transparent; cursor: pointer; flex-shrink: 0;" aria-label="Назад">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m15 18-6-6 6-6"/>
             </svg>
           </button>
-          <h1 class="font-display text-sm font-semibold text-white" style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #FFFFFF; margin: 0;">
+          <h1 class="screen-header-title font-body">
             Оформление заказа
           </h1>
         </div>
 
         <!-- MAIN SCROLLABLE ORDER REVIEW CONTENT LOCALIZED STRICTLY PER USER PROMPT -->
-        <form id="checkout-form" class="checkout-form font-body" style="gap: 0; padding-bottom: 220px;">
+        <form id="checkout-form" class="checkout-form font-body" style="gap: 0; padding-bottom: 160px;">
           
           <!-- TOP PRODUCT SUMMARY CARD (TITLE, SIZE, CONDITION, BOX + RIGHT IMAGE) -->
           <div class="goat-order-product-card font-body">
@@ -558,92 +601,119 @@ class KedsApp {
           <!-- DIVIDER -->
           <div class="goat-section-divider"></div>
 
-          <!-- SHIPPING SECTION WITH TABS ('Доставка' / 'Самовывоз') & ACTIVE SHIPPING CARD -->
-          <div class="goat-shipping-section font-body">
-            <div class="shipping-section-top font-body">
-              <div class="shipping-tabs-row font-body">
-                <button 
-                  type="button" 
-                  class="ship-tab-rect ${this.deliveryType === 'post' ? 'active' : ''}" 
-                  data-type="post"
-                >
-                  Доставка
-                </button>
-                <button 
-                  type="button" 
-                  class="ship-tab-rect ${this.deliveryType === 'pickup' ? 'active' : ''}" 
-                  data-type="pickup"
-                >
-                  Самовывоз
-                </button>
-              </div>
-
-              <div id="open-branch-drawer-btn" class="ship-address-link font-body">
-                <span>Выбрать адрес доставки</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#737373" stroke-width="2">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
-              </div>
+          <!-- SHIPPING SECTION WITH FULL-WIDTH SEGMENTED CONTROL & ADDRESS ROW -->
+          <div class="goat-shipping-section font-body" style="padding: 16px 0;">
+            <div class="shipping-section-title font-body" style="font-size: 13px; font-weight: 600; color: #FFFFFF; margin-bottom: 12px;">
+              Способ получения
             </div>
 
-            <!-- ACTIVE SHIPPING METHOD CARD -->
-            ${this.deliveryType === 'post' ? `
-              <div class="goat-active-ship-card font-body">
-                <div class="ship-card-label font-body">Стандартная доставка почтой</div>
-                <div class="ship-card-price font-display tabular-nums">${totalPriceFormatted}</div>
-                <div class="ship-card-sub font-body">+Бесплатная экспресс-доставка</div>
-              </div>
-            ` : `
-              <div class="goat-active-ship-card font-body">
-                <div class="ship-card-label font-body">Самовывоз из шоурума</div>
-                <div class="ship-card-price font-display tabular-nums">0 ₽</div>
-                <div class="ship-card-sub font-body">ул. Ленина, 10</div>
-              </div>
-            `}
-
-            <!-- SUBTEXT & VERIFICATION DISCLAIMER -->
-            <div class="goat-verification-line font-body">
-              <span>Пара проходит проверку подлинности перед отправкой.</span>
-              <a href="#" class="pricing-details-link font-body">Детали</a>
+            <!-- FULL-WIDTH SEGMENTED TOGGLE -->
+            <div class="shipping-segmented-wrap font-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; background-color: #121212; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08); margin-bottom: 12px;">
+              <button 
+                type="button" 
+                class="ship-segment-btn font-body ${this.deliveryType === 'post' ? 'active' : ''}" 
+                data-type="post"
+                style="height: 38px; border-radius: 2px; border: none; background: ${this.deliveryType === 'post' ? '#222222' : 'transparent'}; color: ${this.deliveryType === 'post' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.65)'}; font-size: 13px; font-weight: ${this.deliveryType === 'post' ? '600' : '400'}; cursor: pointer; transition: all 0.15s ease;"
+              >
+                Доставка
+              </button>
+              <button 
+                type="button" 
+                class="ship-segment-btn font-body ${this.deliveryType === 'pickup' ? 'active' : ''}" 
+                data-type="pickup"
+                style="height: 38px; border-radius: 2px; border: none; background: ${this.deliveryType === 'pickup' ? '#222222' : 'transparent'}; color: ${this.deliveryType === 'pickup' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.65)'}; font-size: 13px; font-weight: ${this.deliveryType === 'pickup' ? '600' : '400'}; cursor: pointer; transition: all 0.15s ease;"
+              >
+                Самовывоз
+              </button>
             </div>
-          </div>
 
-          <!-- DIVIDER -->
-          <div class="goat-section-divider"></div>
-
-          <!-- PAYMENT METHOD ROW -->
-          <div class="goat-payment-row-link font-body" id="payment-method-row-trigger">
-            <span class="payment-row-title font-body">Способ оплаты</span>
-            <div class="payment-row-right font-body">
-              <span class="apple-pay-mock-badge font-display">💳 СБП / Карта</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#737373" stroke-width="2">
+            <!-- SEPARATE ADDRESS PICKER LINK ROW -->
+            <div id="open-branch-drawer-btn" class="address-select-row font-body" style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background-color: #121212; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; cursor: pointer; margin-bottom: 8px; transition: border-color 0.15s ease;">
+              <div style="display: flex; flex-direction: column; gap: 2px; text-align: left;">
+                <span class="font-body" style="font-size: 11px; color: rgba(255, 255, 255, 0.65);">Адрес получения / Пункт выдачи</span>
+                <span class="font-body" style="font-size: 13px; font-weight: 500; color: #FFFFFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;">
+                  ${this.selectedBranch ? `${this.selectedBranch.city}, ${this.selectedBranch.address}` : (this.deliveryType === 'pickup' ? 'г. Минск, ул. Ленина, 10 (Шоурум TREAD)' : 'Выберите пункт выдачи или отделение почты')}
+                </span>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 255, 255, 0.65)" stroke-width="2" style="flex-shrink: 0;">
                 <polyline points="9 18 15 12 9 6"/>
               </svg>
             </div>
+
+            <!-- VERIFICATION DISCLAIMER -->
+            <div class="goat-verification-line font-body" style="margin-top: 8px; color: rgba(255, 255, 255, 0.65);">
+              <span>Пара проходит аутентификацию TREAD Verification.</span>
+            </div>
           </div>
 
           <!-- DIVIDER -->
           <div class="goat-section-divider"></div>
 
-          <!-- TOTAL FINANCIAL BREAKDOWN BLOCK -->
-          <div class="goat-total-breakdown-block font-body">
-            <div class="total-main-row font-body">
-              <span class="total-main-label font-body">Итого к оплате</span>
-              <span class="total-main-val font-display tabular-nums">${totalPriceFormatted}</span>
+          <!-- PAYMENT METHOD VERTICAL RADIO CARDS LIST -->
+          <div class="checkout-section font-body" style="padding: 16px 0;">
+            <div class="checkout-section-title font-body" style="font-size: 13px; font-weight: 600; color: #FFFFFF; margin-bottom: 12px;">
+              Способ оплаты
             </div>
-            <div class="total-sub-row font-body">
-              <span class="total-sub-label font-body">Сумма заказа</span>
-              <span class="total-sub-val font-body tabular-nums">${totalPriceFormatted}</span>
+
+            <div class="tread-radio-list font-body" style="display: flex; flex-direction: column; gap: 8px;">
+              ${[
+                { id: 'tread_pay', title: 'TREAD Pay', subtitle: `4 равных платежа по ${new Intl.NumberFormat('ru-RU').format(Math.round(totalPrice / 4))} ₽ без переплат` },
+                { id: 'card', title: 'Банковская карта', subtitle: 'МИР, Visa, Mastercard' },
+                { id: 'sbp', title: 'СБП', subtitle: 'Система быстрых платежей' },
+                { id: 'erip', title: 'ЕРИП / Расчет', subtitle: 'Оплата в приложении банка (Беларусь)' },
+                { id: 'cash', title: 'Оплата при получении', subtitle: 'Наличными или картой курьеру' }
+              ].map(opt => {
+                const isSelected = this.paymentMethod === opt.id;
+                return `
+                  <div 
+                    class="tread-radio-card font-body ${isSelected ? 'selected' : ''}" 
+                    data-payment-id="${opt.id}"
+                    style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background-color: ${isSelected ? '#181818' : '#121212'}; border: 1px solid ${isSelected ? 'rgba(255, 255, 255, 0.35)' : 'rgba(255, 255, 255, 0.08)'}; border-radius: 4px; cursor: pointer; transition: all 0.15s ease;"
+                  >
+                    <div style="display: flex; flex-direction: column; gap: 2px; text-align: left;">
+                      <span class="font-body" style="font-size: 13px; font-weight: ${isSelected ? '600' : '400'}; color: #FFFFFF;">
+                        ${opt.title}
+                      </span>
+                      ${opt.subtitle ? `<span class="font-body" style="font-size: 11px; color: rgba(255, 255, 255, 0.65);">${opt.subtitle}</span>` : ''}
+                    </div>
+
+                    <!-- MONOCHROME RADIO INDICATOR -->
+                    <div class="tread-radio-circle" style="width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid ${isSelected ? '#FFFFFF' : 'rgba(255, 255, 255, 0.25)'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                      ${isSelected ? `<div style="width: 8px; height: 8px; border-radius: 50%; background-color: #FFFFFF;"></div>` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- DIVIDER -->
+          <div class="goat-section-divider"></div>
+
+          <!-- SUMMARY FINANCIAL BREAKDOWN BLOCK -->
+          <div class="checkout-financial-summary font-body" style="padding: 16px; background-color: #121212; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08); margin: 16px 0; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: rgba(255, 255, 255, 0.65);">
+              <span>Товары (${totalCount} шт.)</span>
+              <span class="tabular-nums font-body" style="color: #FFFFFF;">${totalPriceFormatted}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: rgba(255, 255, 255, 0.65);">
+              <span>Доставка</span>
+              <span class="font-body" style="color: #FFFFFF;">Бесплатно</span>
+            </div>
+            <div style="height: 1px; background-color: rgba(255,255,255,0.08); margin: 4px 0;"></div>
+            <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; color: #FFFFFF;">
+              <span>Итого к оплате</span>
+              <span class="font-display tabular-nums" style="font-size: 16px; font-weight: 700; color: #FFFFFF;">${totalPriceFormatted}</span>
             </div>
           </div>
 
           <!-- FIXED CTA & DISCLAIMER FOOTER STRICTLY PER PROMPT -->
           <div class="goat-review-sticky-footer font-body">
             <button type="submit" class="goat-large-white-cta-btn font-body">
-              ОПЛАТИТЬ ЧЕРЕЗ TREAD PAY
+              ${this.paymentMethod === 'card' ? 'ОПЛАТИТЬ КАРТОЙ' : this.paymentMethod === 'sbp' ? 'ОПЛАТИТЬ ЧЕРЕЗ СБП' : this.paymentMethod === 'erip' ? 'ОПЛАТИТЬ ЧЕРЕЗ ЕРИП' : this.paymentMethod === 'cash' ? 'ПОДТВЕРДИТЬ ЗАКАЗ' : 'ОПЛАТИТЬ ЧЕРЕЗ TREAD PAY'}
             </button>
 
-            <p class="goat-disclaimer-text font-body">
+            <p class="goat-disclaimer-text font-body" style="color: rgba(255, 255, 255, 0.65); font-size: 11px; text-align: center; margin: 0;">
               Оформляя заказ, вы соглашаетесь с условиями сервиса и правилами возврата.
             </p>
           </div>
@@ -655,7 +725,7 @@ class KedsApp {
       ${this.isBranchDrawerOpen ? `
         <div class="goat-location-drawer-fullscreen font-body">
           <div class="goat-location-header font-body">
-            <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="goat-location-header-left font-body">
               <button id="close-branch-drawer-btn" class="checkout-back-btn" aria-label="Назад" style="position: static;">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M19 12H5"/>
@@ -763,21 +833,279 @@ class KedsApp {
     `;
   }
 
-  renderPaymentGatewayView() {
+  bindPaymentInnerEvents() {
+    const cardNumInput = document.getElementById('card-number-input');
+    if (cardNumInput) {
+      cardNumInput.addEventListener('input', (e) => {
+        this.cardNumber = this.formatCardNumber(e.target.value);
+        e.target.value = this.cardNumber;
+        const brandLogo = this.getCardBrandLogo(this.cardNumber);
+        const wrap = e.target.parentElement;
+        if (wrap) {
+          let badge = wrap.querySelector('.card-brand-detected-badge');
+          if (brandLogo) {
+            if (!badge) {
+              badge = document.createElement('span');
+              badge.className = 'card-brand-detected-badge font-display';
+              wrap.appendChild(badge);
+            }
+            badge.textContent = brandLogo;
+          } else if (badge) {
+            badge.remove();
+          }
+        }
+      });
+    }
+
+    const cardExpiryInput = document.getElementById('card-expiry-input');
+    if (cardExpiryInput) {
+      cardExpiryInput.addEventListener('input', (e) => {
+        this.cardExpiry = this.formatCardExpiry(e.target.value);
+        e.target.value = this.cardExpiry;
+      });
+    }
+
+    const cardCvcInput = document.getElementById('card-cvc-input');
+    if (cardCvcInput) {
+      cardCvcInput.addEventListener('input', (e) => {
+        this.cardCvc = e.target.value.replace(/\D/g, '').slice(0, 3);
+        e.target.value = this.cardCvc;
+      });
+    }
+
+    const cardHolderInput = document.getElementById('card-holder-input');
+    if (cardHolderInput) {
+      cardHolderInput.addEventListener('input', (e) => {
+        this.cardHolder = e.target.value.toUpperCase();
+      });
+    }
+
+    const handlePaymentSubmit = () => {
+      if (this.paymentModalMode === 'select') {
+        this.closePaymentGateway();
+      } else {
+        this.processPaymentSubmit();
+      }
+    };
+
+    const cardForm = document.getElementById('payment-card-form');
+    if (cardForm) {
+      cardForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        handlePaymentSubmit();
+      });
+    }
+
+    const submitSbpBtn = document.getElementById('submit-sbp-payment-btn');
+    if (submitSbpBtn) {
+      submitSbpBtn.addEventListener('click', () => handlePaymentSubmit());
+    }
+
+    const submitReceiptBtn = document.getElementById('submit-receipt-payment-btn');
+    if (submitReceiptBtn) {
+      submitReceiptBtn.addEventListener('click', () => handlePaymentSubmit());
+    }
+  }
+
+  updatePaymentTabContent() {
+    const pmTabs = document.querySelectorAll('.payment-tab-btn[data-pm]');
+    pmTabs.forEach(tab => {
+      if (tab.getAttribute('data-pm') === this.paymentMethod) {
+        tab.classList.add('active');
+      } else {
+        tab.classList.remove('active');
+      }
+    });
+
+    const tabBody = document.querySelector('.payment-tab-body');
+    if (tabBody) {
+      tabBody.innerHTML = this.renderPaymentTabBodyContent();
+      this.bindPaymentInnerEvents();
+    }
+  }
+
+  renderPaymentTabBodyContent() {
     const totalPrice = this.cartItems.length > 0
       ? this.cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
       : 81400;
     const totalPriceFormatted = new Intl.NumberFormat('ru-RU').format(totalPrice) + ' ₽';
     const cardBrandLogo = this.getCardBrandLogo(this.cardNumber);
 
+    const isSelect = this.paymentModalMode === 'select';
+
+    if (this.paymentMethod === 'card') {
+      const badgeHtml = cardBrandLogo ? '<span class="card-brand-detected-badge font-display">' + cardBrandLogo + '</span>' : '';
+      const submitText = this.isPaymentProcessing
+        ? '<div class="payment-spinner-loader font-body"><span class="spinner-circle"></span>Обработка...</div>'
+        : (isSelect ? 'СОХРАНИТЬ ВЫБОР' : 'ОПЛАТИТЬ ' + totalPriceFormatted);
+      const disabledAttr = this.isPaymentProcessing ? 'disabled' : '';
+      const loadingClass = this.isPaymentProcessing ? 'loading' : '';
+
+      return `
+        <form id="payment-card-form" class="payment-card-form font-body">
+          <div class="payment-field-group font-body">
+            <div class="payment-input-wrap font-body">
+              <input 
+                type="text" 
+                id="card-number-input"
+                class="goat-underline-input font-body tabular-nums" 
+                placeholder="0000 0000 0000 0000" 
+                value="${this.cardNumber}"
+                maxlength="19"
+                required
+              />
+              ${badgeHtml}
+            </div>
+          </div>
+
+          <div class="payment-row-2col font-body">
+            <div class="payment-field-group font-body">
+              <input 
+                type="text" 
+                id="card-expiry-input"
+                class="goat-underline-input font-body tabular-nums" 
+                placeholder="Срок (MM/YY)" 
+                value="${this.cardExpiry}"
+                maxlength="5"
+                required
+              />
+            </div>
+
+            <div class="payment-field-group font-body">
+              <input 
+                type="password" 
+                id="card-cvc-input"
+                class="goat-underline-input font-body tabular-nums" 
+                placeholder="CVC / CVV" 
+                value="${this.cardCvc}"
+                maxlength="3"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="payment-field-group font-body">
+            <input 
+              type="text" 
+              id="card-holder-input"
+              class="goat-underline-input font-body" 
+              placeholder="ИМЯ ВЛАДЕЛЬЦА (CARDHOLDER NAME)" 
+              value="${this.cardHolder}"
+              style="text-transform: uppercase;"
+              required
+            />
+          </div>
+
+          <div class="payment-footer-bar font-body">
+            <button 
+              type="submit" 
+              id="submit-payment-btn"
+              class="goat-checkout-cta-btn font-body ${loadingClass}"
+              ${disabledAttr}
+            >
+              ${submitText}
+            </button>
+          </div>
+        </form>
+      `;
+    }
+
+    if (this.paymentMethod === 'sbp') {
+      const submitText = this.isPaymentProcessing
+        ? '<div class="payment-spinner-loader font-body"><span class="spinner-circle"></span>Проверка оплаты...</div>'
+        : (isSelect ? 'СОХРАНИТЬ ВЫБОР' : 'ПОДТВЕРДИТЬ ОПЛАТУ ' + totalPriceFormatted);
+      const disabledAttr = this.isPaymentProcessing ? 'disabled' : '';
+      const loadingClass = this.isPaymentProcessing ? 'loading' : '';
+
+      return `
+        <div class="sbp-qr-container font-body">
+          <div class="sbp-qr-box font-body">
+            <svg width="140" height="140" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.2">
+              <rect x="3" y="3" width="7" height="7"/>
+              <rect x="14" y="3" width="7" height="7"/>
+              <rect x="3" y="14" width="7" height="7"/>
+              <rect x="5" y="5" width="3" height="3" fill="#FFFFFF"/>
+              <rect x="16" y="5" width="3" height="3" fill="#FFFFFF"/>
+              <rect x="5" y="16" width="3" height="3" fill="#FFFFFF"/>
+              <path d="M14 14h3v3h-3zM17 17h4v4h-4zM14 19h3v2h-3z"/>
+            </svg>
+          </div>
+          <div class="sbp-instructions-text font-body">
+            Отсканируйте QR-код в приложении вашего банка для мгновенной оплаты без ввода карты СБП
+          </div>
+          <button 
+            type="button" 
+            id="submit-sbp-payment-btn"
+            class="goat-checkout-cta-btn font-body ${loadingClass}"
+            style="margin-top: 16px;"
+            ${disabledAttr}
+          >
+            ${submitText}
+          </button>
+        </div>
+      `;
+    }
+
+    if (this.paymentMethod === 'upon_receipt') {
+      const submitText = this.isPaymentProcessing
+        ? '<div class="payment-spinner-loader font-body"><span class="spinner-circle"></span>Оформление...</div>'
+        : (isSelect ? 'СОХРАНИТЬ ВЫБОР' : 'ПОДТВЕРДИТЬ ЗАКАЗ НА ' + totalPriceFormatted);
+      const disabledAttr = this.isPaymentProcessing ? 'disabled' : '';
+      const loadingClass = this.isPaymentProcessing ? 'loading' : '';
+
+      return `
+        <div class="upon-receipt-container font-body">
+          <div class="upon-icon-wrap font-body">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="5" width="20" height="14" rx="2"/>
+              <line x1="2" y1="10" x2="22" y2="10"/>
+            </svg>
+          </div>
+          <div class="upon-title font-display">Оплата при получении</div>
+          <div class="upon-subtext font-body">
+            Вы сможете оплатить заказ наличными или банковской картой курьеру при вручении либо в пункте выдачи почты после проверки пары.
+          </div>
+          <button 
+            type="button" 
+            id="submit-receipt-payment-btn"
+            class="goat-checkout-cta-btn font-body ${loadingClass}"
+            style="margin-top: 20px;"
+            ${disabledAttr}
+          >
+            ${submitText}
+          </button>
+        </div>
+      `;
+    }
+
+    return '';
+  }
+
+  renderPaymentGatewayView() {
+    const totalPrice = this.cartItems.length > 0
+      ? this.cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0)
+      : 81400;
+    const totalPriceFormatted = new Intl.NumberFormat('ru-RU').format(totalPrice) + ' ₽';
+
+    const pmTitles = {
+      tread_pay: 'Оплата через TREAD Pay',
+      card: 'Оплата банковской картой',
+      sbp: 'Оплата через СБП',
+      erip: 'Оплата через ЕРИП',
+      cash: 'Подтверждение заказа',
+      upon_receipt: 'Подтверждение заказа'
+    };
+
+    const modalTitle = pmTitles[this.paymentMethod] || 'Оплата заказа';
+
     return `
       <div class="payment-gateway-overlay font-body">
         <div class="payment-gateway-modal font-body">
-          <!-- STANDARD BOTTOM SHEET TOP BLOCK -->
-          <div class="w-9 h-1 rounded-full bg-white/20 mx-auto mt-2.5 mb-1" style="width: 36px; height: 4px; border-radius: 9999px; background-color: rgba(255,255,255,0.20); margin: 10px auto 4px auto;"></div>
+          <!-- STRICT ARCHITECTURAL BOTTOM SHEET TOP BLOCK -->
+          <div class="sheet-drag-handle-strict font-body" aria-hidden="true"></div>
 
           <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
-            <h2 class="font-display text-sm font-semibold text-white" style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #FFFFFF; margin: 0;">Оплата заказа</h2>
+            <h2 class="font-display text-sm font-semibold text-white" style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #FFFFFF; margin: 0;">${modalTitle}</h2>
             <button id="close-payment-modal-btn" class="sheet-close-btn" style="background: transparent; border: none; color: #737373; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s ease;" aria-label="Закрыть">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -789,177 +1117,14 @@ class KedsApp {
           <div class="payment-bank-summary font-body">
             <div class="payment-amount-val font-display tabular-nums">${totalPriceFormatted}</div>
             <div class="payment-order-subtext font-body">
-              Заказ #${this.orderId || 'TR-84920'} • TREAD Store
+              <span>Заказ #${this.orderId || 'TR-84920'}</span>
+              <span class="payment-subtext-slash"> / </span>
+              <span class="payment-subtext-store">TREAD Store</span>
             </div>
           </div>
 
-          <div class="payment-methods-tabs font-body">
-            <button 
-              type="button" 
-              class="payment-tab-btn font-body ${this.paymentMethod === 'card' ? 'active' : ''}" 
-              data-pm="card"
-            >
-              Банковская карта
-            </button>
-            <button 
-              type="button" 
-              class="payment-tab-btn font-body ${this.paymentMethod === 'sbp' ? 'active' : ''}" 
-              data-pm="sbp"
-            >
-              СБП (QR)
-            </button>
-            <button 
-              type="button" 
-              class="payment-tab-btn font-body ${this.paymentMethod === 'upon_receipt' ? 'active' : ''}" 
-              data-pm="upon_receipt"
-            >
-              При получении
-            </button>
-          </div>
-
           <div class="payment-tab-body font-body">
-            ${this.paymentMethod === 'card' ? `
-              <form id="payment-card-form" class="payment-card-form font-body">
-                <div class="payment-field-group font-body">
-                  <div class="payment-input-wrap font-body">
-                    <input 
-                      type="text" 
-                      id="card-number-input"
-                      class="goat-underline-input font-body tabular-nums" 
-                      placeholder="0000 0000 0000 0000" 
-                      value="${this.cardNumber}"
-                      maxlength="19"
-                      required
-                    />
-                    ${cardBrandLogo ? `
-                      <span class="card-brand-detected-badge font-display">${cardBrandLogo}</span>
-                    ` : ''}
-                  </div>
-                </div>
-
-                <div class="payment-row-2col font-body">
-                  <div class="payment-field-group font-body">
-                    <input 
-                      type="text" 
-                      id="card-expiry-input"
-                      class="goat-underline-input font-body tabular-nums" 
-                      placeholder="Срок (MM/YY)" 
-                      value="${this.cardExpiry}"
-                      maxlength="5"
-                      required
-                    />
-                  </div>
-
-                  <div class="payment-field-group font-body">
-                    <input 
-                      type="password" 
-                      id="card-cvc-input"
-                      class="goat-underline-input font-body tabular-nums" 
-                      placeholder="CVC / CVV" 
-                      value="${this.cardCvc}"
-                      maxlength="3"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div class="payment-field-group font-body">
-                  <input 
-                    type="text" 
-                    id="card-holder-input"
-                    class="goat-underline-input font-body" 
-                    placeholder="ИМЯ ВЛАДЕЛЬЦА (CARDHOLDER NAME)" 
-                    value="${this.cardHolder}"
-                    style="text-transform: uppercase;"
-                    required
-                  />
-                </div>
-
-                <div class="payment-footer-bar font-body">
-                  <button 
-                    type="submit" 
-                    id="submit-payment-btn"
-                    class="goat-checkout-cta-btn font-body ${this.isPaymentProcessing ? 'loading' : ''}"
-                    ${this.isPaymentProcessing ? 'disabled' : ''}
-                  >
-                    ${this.isPaymentProcessing ? `
-                      <div class="payment-spinner-loader font-body">
-                        <span class="spinner-circle"></span>
-                        Обработка платежа...
-                      </div>
-                    ` : `
-                      ОПЛАТИТЬ ${totalPriceFormatted}
-                    `}
-                  </button>
-                </div>
-              </form>
-            ` : ''}
-
-            ${this.paymentMethod === 'sbp' ? `
-              <div class="sbp-qr-container font-body">
-                <div class="sbp-qr-box font-body">
-                  <svg width="140" height="140" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.2">
-                    <rect x="3" y="3" width="7" height="7"/>
-                    <rect x="14" y="3" width="7" height="7"/>
-                    <rect x="3" y="14" width="7" height="7"/>
-                    <rect x="5" y="5" width="3" height="3" fill="#FFFFFF"/>
-                    <rect x="16" y="5" width="3" height="3" fill="#FFFFFF"/>
-                    <rect x="5" y="16" width="3" height="3" fill="#FFFFFF"/>
-                    <path d="M14 14h3v3h-3zM17 17h4v4h-4zM14 19h3v2h-3z"/>
-                  </svg>
-                </div>
-                <div class="sbp-instructions-text font-body">
-                  Отсканируйте QR-код в приложении вашего банка для мгновенной оплаты без ввода карты СБП
-                </div>
-                <button 
-                  type="button" 
-                  id="submit-sbp-payment-btn"
-                  class="goat-checkout-cta-btn font-body ${this.isPaymentProcessing ? 'loading' : ''}"
-                  style="margin-top: 16px;"
-                  ${this.isPaymentProcessing ? 'disabled' : ''}
-                >
-                  ${this.isPaymentProcessing ? `
-                    <div class="payment-spinner-loader font-body">
-                      <span class="spinner-circle"></span>
-                      Проверка оплаты...
-                    </div>
-                  ` : `
-                    ПОДТВЕРДИТЬ ОПЛАТУ ${totalPriceFormatted}
-                  `}
-                </button>
-              </div>
-            ` : ''}
-
-            ${this.paymentMethod === 'upon_receipt' ? `
-              <div class="upon-receipt-container font-body">
-                <div class="upon-icon-wrap font-body">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="2" y="5" width="20" height="14" rx="2"/>
-                    <line x1="2" y1="10" x2="22" y2="10"/>
-                  </svg>
-                </div>
-                <div class="upon-title font-display">Оплата при получении</div>
-                <div class="upon-subtext font-body">
-                  Вы сможете оплатить заказ наличными или банковской картой курьеру при вручении либо в пункте выдачи почты после проверки пары.
-                </div>
-                <button 
-                  type="button" 
-                  id="submit-receipt-payment-btn"
-                  class="goat-checkout-cta-btn font-body ${this.isPaymentProcessing ? 'loading' : ''}"
-                  style="margin-top: 20px;"
-                  ${this.isPaymentProcessing ? 'disabled' : ''}
-                >
-                  ${this.isPaymentProcessing ? `
-                    <div class="payment-spinner-loader font-body">
-                      <span class="spinner-circle"></span>
-                      Оформление...
-                    </div>
-                  ` : `
-                    ПОДТВЕРДИТЬ ЗАКАЗ НА ${totalPriceFormatted}
-                  `}
-                </button>
-              </div>
-            ` : ''}
+            ${this.renderPaymentTabBodyContent()}
           </div>
 
         </div>
@@ -968,47 +1133,169 @@ class KedsApp {
   }
 
   renderAboutView() {
-    const aboutItems = [
+    const block1Items = [
       { id: 'faq', title: 'Частые вопросы (FAQ)' },
       { id: 'privacy', title: 'Политика конфиденциальности' },
       { id: 'terms', title: 'Пользовательское соглашение' },
+    ];
+
+    const block2Items = [
       { id: 'telegram', title: 'Telegram-канал' },
       { id: 'support', title: 'Связаться с поддержкой' },
     ];
 
     return `
-      <div class="about-screen-container font-body" style="min-height: 100vh; background-color: #000000; color: #FFFFFF; display: flex; flex-direction: column;">
-        <!-- ЕДИНАЯ ШАПКА ПОЛНОЭКРАННОЙ СТРАНИЦЫ -->
-        <div class="flex items-center gap-3 px-4 pt-4 pb-4 border-b border-white/[0.06]" style="display: flex; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
-          <button id="about-back-btn" class="w-9 h-9 rounded-full border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-colors" style="width: 36px; height: 36px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: #FFFFFF; background: transparent; cursor: pointer; flex-shrink: 0;" aria-label="Назад">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m15 18-6-6 6-6"/>
-            </svg>
-          </button>
-          <h1 class="font-display text-sm font-semibold text-white" style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #FFFFFF; margin: 0;">
-            О приложении
-          </h1>
+      <div class="about-screen-container font-body">
+        <!-- ЕДИНАЯ ШАПКА КОРНЕВОЙ СТРАНИЦЫ (БЕЗ КНОПОК ВОЗВРАТА) -->
+        <div class="about-header font-body">
+          <h1 class="about-header-title font-display" style="margin: 0;">О приложении</h1>
         </div>
 
-        <!-- Список пунктов меню (Navigation List) -->
-        <div class="about-nav-list font-body" style="display: flex; flex-direction: column; width: 100%;">
-          ${aboutItems.map(item => `
-            <div class="about-nav-item" data-id="${item.id}" style="display: flex; align-items: center; justify-content: space-between; padding: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); cursor: pointer; transition: background-color 0.15s ease;">
-              <span class="text-xs font-normal text-[#E5E5E5]" style="font-size: 12px; font-weight: 400; color: #E5E5E5; font-family: var(--font-body);">
-                ${item.title}
-              </span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#525252" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
-                <path d="m9 18 6-6-6-6"/>
-              </svg>
-            </div>
+        <div class="about-content-body font-body">
+          <!-- КОМПАКТНЫЙ МОНОХРОМНЫЙ ЛОГОТИП TREAD -->
+          <div class="about-brand-hero font-body">
+            <svg viewBox="0 0 160 32" fill="none" class="about-logo-svg">
+              <g fill="var(--accent)">
+                <rect x="2" y="6" width="5" height="20" rx="1.5" />
+                <rect x="10" y="3" width="5" height="26" rx="1.5" />
+                <rect x="18" y="8" width="5" height="16" rx="1.5" />
+              </g>
+              <text x="34" y="23" fill="var(--text-primary)" font-family="var(--font-display)" font-size="18" font-weight="800" letter-spacing="0.04em">TREAD</text>
+            </svg>
+          </div>
+
+          <!-- БЛОК 1: FAQ, ПОЛИТИКА, СОГЛАШЕНИЕ -->
+          <div class="about-card-group font-body">
+            ${block1Items.map((item, index) => `
+              ${index > 0 ? '<div class="about-inset-divider font-body"></div>' : ''}
+              <div class="about-item-row font-body" data-about-id="${item.id}">
+                <span class="about-item-title font-body">${item.title}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="about-item-chevron">
+                  <path d="m9 18 6-6-6-6"/>
+                </svg>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- БЛОК 2: TELEGRAM, ПОДДЕРЖКА -->
+          <div class="about-card-group font-body">
+            ${block2Items.map((item, index) => `
+              ${index > 0 ? '<div class="about-inset-divider font-body"></div>' : ''}
+              <div class="about-item-row font-body" data-about-id="${item.id}">
+                <span class="about-item-title font-body">${item.title}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="about-item-chevron">
+                  <path d="m9 18 6-6-6-6"/>
+                </svg>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- ВЕРСИЯ ПРИЛОЖЕНИЯ В САМОМ НИЗУ ЭКРАНА ПРЯМО НАД ТАББАРОМ -->
+          <div class="about-version-footer font-body tabular-nums">
+            Версия 1.0.0
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  renderInfoModal() {
+    const titles = {
+      faq: 'Частые вопросы (FAQ)',
+      privacy: 'Политика конфиденциальности',
+      terms: 'Пользовательское соглашение'
+    };
+
+    const title = titles[this.activeInfoSheet] || 'Информация';
+
+    let contentHtml = '';
+
+    if (this.activeInfoSheet === 'faq') {
+      const faqs = [
+        {
+          q: 'Все ли кроссовки оригинальные?',
+          a: 'Да, абсолютно все товары проходят многоэтапную аутентификацию нашей командой легит-чекеров перед отправкой покупателю. Каждая пара имеет фирменную гарантию подлинности TREAD Verification.'
+        },
+        {
+          q: 'Сколько занимает доставка по Беларуси?',
+          a: 'Доставка почтовыми службами (Белпочта / Европочта) занимает от 1 до 3 рабочих дней. В шоуруме в Минске забрать заказ можно в день оформления.'
+        },
+        {
+          q: 'Можно ли примерить обувь перед покупкой?',
+          a: 'Да! При доставке курьером или самовывозе в пункте выдачи у вас есть возможность примерить пару и проверить комплектность до совершения оплаты.'
+        },
+        {
+          q: 'Что делать, если размер не подошел?',
+          a: 'Вы можете вернуть или обменять не подошедший товар в течение 14 дней с момента получения при сохранении товарного вида и оригинальной коробки.'
+        }
+      ];
+
+      contentHtml = `
+        <div class="faq-grouped-card font-body">
+          ${faqs.map(f => `
+            <details class="faq-accordion-item font-body">
+              <summary class="faq-accordion-summary font-body">
+                <span class="faq-question-text font-body">${f.q}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="faq-chevron-icon">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+              </summary>
+              <div class="faq-accordion-content font-body">
+                <p class="faq-answer-paragraph font-body">${f.a}</p>
+              </div>
+            </details>
           `).join('')}
         </div>
+      `;
+    } else if (this.activeInfoSheet === 'privacy') {
+      contentHtml = `
+        <div class="legal-doc-body font-body">
+          <div class="doc-paragraph-text font-body"> Настоящая Политика конфиденциальности определяет порядок обработки и защиты персональной информации пользователей сервиса TREAD Store в соответствии с Законом Республики Беларусь № 99-З «Об защите персональных данных».</div>
+          
+          <div class="doc-article-title font-display">1. Собираемые данные</div>
+          <div class="doc-paragraph-text font-body">Мы собираем только необходимые данные для исполнения заказа: ФИО получателя, контактный номер телефона, адрес электронной почты и адрес отделения связи для доставки.</div>
+          
+          <div class="doc-article-title font-display">2. Цели обработки</div>
+          <div class="doc-paragraph-text font-body">Персональные данные используются исключительно для подтверждения заказов, организации доставки через логистических партнеров и предоставления клиентской поддержки.</div>
 
-        <!-- Подвал экрана -->
-        <div style="margin-top: auto; padding-bottom: 96px; padding-top: 32px; text-align: center;">
-          <span class="text-[10px] font-normal tracking-wider text-[#525252]" style="font-size: 10px; font-weight: 400; letter-spacing: 0.05em; color: #525252; font-family: var(--font-body);">
-            Версия 1.0.0
-          </span>
+          <div class="doc-article-title font-display">3. Защита данных</div>
+          <div class="doc-paragraph-text font-body">Мы применяем современные протоколы шифрования SSL/TLS и не передаем ваши данные третьим лицам, за исключением авторизованных почтовых операторов.</div>
+        </div>
+      `;
+    } else if (this.activeInfoSheet === 'terms') {
+      contentHtml = `
+        <div class="legal-doc-body font-body">
+          <div class="doc-paragraph-text font-body">Настоящее Пользовательское соглашение регулирует отношения между интернет-магазином TREAD Store и покупателями при оформлении заказов через мобильное приложение.</div>
+          
+          <div class="doc-article-title font-display">1. Предмет соглашения</div>
+          <div class="doc-paragraph-text font-body">Продавец обязуется передать Покупателю оригинальную обувь в соответствии с выбранным размером и комплектацией, а Покупатель — принять и оплатить товар.</div>
+
+          <div class="doc-article-title font-display">2. Порядок оплаты и проверки</div>
+          <div class="doc-paragraph-text font-body">Все заказы проходят предварительную проверку на подлинность. Оплата производится банковскими картами, через СБП или при получении в пункте выдачи.</div>
+
+          <div class="doc-article-title font-display">3. Возврат и гарантия</div>
+          <div class="doc-paragraph-text font-body">Гарантийный срок на фабричный брак составляет 30 календарных дней. Возврат качественного товара доступен в течение 14 дней.</div>
+        </div>
+      `;
+    }
+
+    return `
+      <div id="info-sheet-overlay" class="sheet-overlay font-body"></div>
+      <div class="info-sheet-drawer font-body">
+        <div class="sheet-drag-handle-strict font-body" aria-hidden="true"></div>
+
+        <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
+          <h2 class="font-display text-sm font-semibold text-white" style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #FFFFFF; margin: 0;">${title}</h2>
+          <button id="close-info-sheet-btn" class="sheet-close-btn" style="background: transparent; border: none; color: #737373; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s ease;" aria-label="Закрыть">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="info-sheet-body font-body no-scrollbar">
+          ${contentHtml}
         </div>
       </div>
     `;
@@ -1018,7 +1305,7 @@ class KedsApp {
     const minPercent = ((this.draftMinPrice - 10000) / 90000) * 100;
     const maxPercent = ((this.draftMaxPrice - 10000) / 90000) * 100;
 
-    const brandList = ['Nike', 'Jordan', 'New Balance', 'Adidas', 'ASICS'];
+    const brandList = ['Nike', 'Jordan', 'New Balance', 'Adidas', 'ASICS', 'Salomon', 'Puma'];
     const sizeList = ['39 EU', '40 EU', '41 EU', '42 EU', '42.5 EU', '43 EU', '44 EU', '45 EU'];
     
     const sortList = [
@@ -1031,8 +1318,8 @@ class KedsApp {
     return `
       <div id="filter-sheet-overlay" class="sheet-overlay font-body"></div>
       <div class="filter-sheet-drawer font-body">
-        <!-- STANDARD BOTTOM SHEET TOP BLOCK -->
-        <div class="w-9 h-1 rounded-full bg-white/20 mx-auto mt-2.5 mb-1" style="width: 36px; height: 4px; border-radius: 9999px; background-color: rgba(255,255,255,0.20); margin: 10px auto 4px auto;"></div>
+        <!-- STRICT ARCHITECTURAL BOTTOM SHEET TOP BLOCK -->
+        <div class="sheet-drag-handle-strict font-body" aria-hidden="true"></div>
 
         <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
           <h2 class="font-display text-sm font-semibold text-white" style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #FFFFFF; margin: 0;">Фильтры</h2>
@@ -1174,36 +1461,16 @@ class KedsApp {
     `;
   }
 
-  renderLiveSearchOverlay() {
-    const liveFiltered = this.getFilteredProducts();
+  renderSearchResultsHtml() {
+    const query = this.searchQuery.trim().toLowerCase();
 
-    return `
-      <div class="goat-live-search-overlay font-body">
-        <div class="live-search-header font-body">
-          <div class="live-search-input-wrap font-body">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#737373" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="7"/>
-              <path d="M16 16L20 20"/>
-            </svg>
-            <input 
-              type="text" 
-              id="live-search-input" 
-              class="live-search-input-field font-body" 
-              placeholder="Поиск модели, бренда или артикула..." 
-              value="${this.escapeHtml(this.searchQuery)}"
-            />
-            ${this.searchQuery ? `
-              <button id="clear-live-search-btn" class="clear-btn font-body" aria-label="Очистить">✕</button>
-            ` : ''}
-          </div>
-
-          <button id="close-live-search-btn" class="live-search-close-btn font-body">
-            Отмена
-          </button>
-        </div>
-
-        <div class="live-search-results-list font-body" style="padding: 0;">
-          ${liveFiltered.length > 0 ? liveFiltered.map(p => {
+    // If search query is empty, show "Популярные модели" (10 positions)
+    if (!query) {
+      const popularProducts = this.products.slice(0, 10);
+      return `
+        <div class="live-search-section-header font-body">Популярные модели</div>
+        <div class="live-search-items-wrap font-body">
+          ${popularProducts.map(p => {
             const priceVal = new Intl.NumberFormat('ru-RU').format(p.price);
             const brandTitle = this.formatBrandName(p.brand);
             return `
@@ -1220,11 +1487,155 @@ class KedsApp {
                 </div>
               </div>
             `;
-          }).join('') : `
-            <div class="no-branches-found font-body" style="padding: 40px 16px;">
-              По запросу "${this.escapeHtml(this.searchQuery)}" ничего не найдено
+          }).join('')}
+        </div>
+      `;
+    }
+
+    const liveFiltered = this.getFilteredProducts();
+
+    if (liveFiltered.length === 0) {
+      return `
+        <div class="no-branches-found font-body" style="padding: 40px 16px;">
+          По запросу "${this.escapeHtml(this.searchQuery)}" ничего не найдено
+        </div>
+      `;
+    }
+
+    return `
+      <div class="live-search-section-header font-body">Результаты поиска (${liveFiltered.length})</div>
+      <div class="live-search-items-wrap font-body">
+        ${liveFiltered.map(p => {
+          const priceVal = new Intl.NumberFormat('ru-RU').format(p.price);
+          const brandTitle = this.formatBrandName(p.brand);
+          return `
+            <div class="live-search-item-row font-body" data-id="${p.id}">
+              <div class="live-item-thumb-bg">
+                <img src="${p.image}" alt="${this.escapeHtml(p.name)}" class="live-item-thumb-img" />
+              </div>
+              <div class="live-item-info font-body">
+                <div class="live-item-title font-body" title="${this.escapeHtml(p.name)}">${this.escapeHtml(p.name)}</div>
+                <div class="live-item-brand font-body">${this.escapeHtml(brandTitle)} / ${this.escapeHtml(p.size)}</div>
+              </div>
+              <div class="live-item-price-monolith font-display tabular-nums">
+                ${priceVal} ₽
+              </div>
             </div>
-          `}
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  renderSearchView() {
+    const popularTags = ['Jordan 4', 'Travis Scott', 'Dunk Low', 'Campus 00s', '1906R', 'Samba'];
+
+    return `
+      <div class="search-screen-container font-body" style="padding-bottom: 96px;">
+        <div class="live-search-header font-body">
+          <div class="live-search-input-wrap font-body">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#737373" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7"/>
+              <path d="M16 16L20 20"/>
+            </svg>
+            <input 
+              type="text" 
+              id="live-search-input" 
+              class="live-search-input-field font-body" 
+              placeholder="Поиск модели или артикула" 
+              value="${this.escapeHtml(this.searchQuery)}"
+            />
+            ${this.searchQuery ? `
+              <button id="clear-live-search-btn" class="clear-btn font-body" aria-label="Очистить">✕</button>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- QUICK TAGS SECTION -->
+        <div class="search-quick-tags-section font-body">
+          <div class="search-section-label font-body">Популярные запросы</div>
+          <div class="search-tags-row font-body">
+            ${popularTags.map(tag => `
+              <button class="search-tag-chip font-body ${this.searchQuery === tag ? 'active' : ''}" data-tag="${tag}">
+                ${tag}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="live-search-results-list font-body" style="padding: 0;">
+          ${this.renderSearchResultsHtml()}
+        </div>
+      </div>
+    `;
+  }
+
+  updateLiveSearchResults() {
+    const listContainer = document.querySelector('.live-search-results-list');
+    if (listContainer) {
+      listContainer.innerHTML = this.renderSearchResultsHtml();
+
+      const rows = listContainer.querySelectorAll('.live-search-item-row');
+      rows.forEach(row => {
+        row.addEventListener('click', () => {
+          const id = row.getAttribute('data-id');
+          const p = this.products.find(x => x.id === id);
+          if (p) {
+            this.closeLiveSearch();
+            this.openProductSheet(p);
+          }
+        });
+      });
+    }
+
+    const clearWrap = document.querySelector('.live-search-input-wrap');
+    if (clearWrap) {
+      let clearBtn = document.getElementById('clear-live-search-btn');
+      if (this.searchQuery.trim()) {
+        if (!clearBtn) {
+          clearBtn = document.createElement('button');
+          clearBtn.id = 'clear-live-search-btn';
+          clearBtn.className = 'clear-btn font-body';
+          clearBtn.setAttribute('aria-label', 'Очистить');
+          clearBtn.textContent = '✕';
+          clearBtn.addEventListener('click', () => {
+            this.searchQuery = '';
+            const input = document.getElementById('live-search-input');
+            if (input) input.value = '';
+            this.updateLiveSearchResults();
+          });
+          clearWrap.appendChild(clearBtn);
+        }
+      } else if (clearBtn) {
+        clearBtn.remove();
+      }
+    }
+  }
+
+  renderLiveSearchOverlay() {
+    return `
+      <div class="goat-live-search-overlay font-body">
+        <div class="live-search-header font-body">
+          <div class="live-search-input-wrap font-body">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#737373" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7"/>
+              <path d="M16 16L20 20"/>
+            </svg>
+            <input 
+              type="text" 
+              id="live-search-input" 
+              class="live-search-input-field font-body" 
+              placeholder="Поиск модели или артикула" 
+              value="${this.escapeHtml(this.searchQuery)}"
+            />
+            ${this.searchQuery ? `
+              <button id="clear-live-search-btn" class="clear-btn font-body" aria-label="Очистить">✕</button>
+            ` : ''}
+          </div>
+        </div>
+
+        <div class="live-search-results-list font-body" style="padding: 0;">
+          ${this.renderSearchResultsHtml()}
         </div>
       </div>
     `;
@@ -1270,6 +1681,11 @@ class KedsApp {
       center: initialCenter,
       zoom: this.highlightedBranch ? 13 : 11,
       controls: [],
+    }, {
+      restrictMapArea: [[51.0, 23.0], [56.5, 31.5]],
+      minZoom: 6,
+      maxZoom: 18,
+      suppressMapOpenBlock: true,
     });
 
     const filteredBranches = BELARUS_POST_BRANCHES.filter(b => {
@@ -1332,17 +1748,16 @@ class KedsApp {
 
     return `
       <div class="goat-cart-container font-body">
-        <!-- STANDARD CARTSHEET / BOTTOM SHEET HEADER -->
-        <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
-          <h1 class="font-display text-sm font-semibold text-white" style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #FFFFFF; margin: 0;">
-            Корзина
-          </h1>
-          <button id="cart-close-btn" class="sheet-close-btn" style="background: transparent; border: none; color: #737373; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s ease;" aria-label="Закрыть">
+        <!-- ШАПКА КОРНЕВОГО ЭКРАНА КОРЗИНЫ С КНОПКОЙ НАЗАД (УНИФИЦИРОВАННАЯ ТИПОГРАФИКА) -->
+        <div class="flex items-center gap-3 px-4 py-3" style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px; background-color: #0A0A0A;">
+          <button id="close-cart-btn" class="checkout-back-btn font-body" style="position: static; width: 36px; height: 36px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: #FFFFFF; background: transparent; cursor: pointer; flex-shrink: 0;" aria-label="Назад в каталог" onclick="window.kedsAppInstance && window.kedsAppInstance.setTab('catalog')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
+              <path d="m15 18-6-6 6-6"/>
             </svg>
           </button>
+          <h1 class="screen-header-title font-body">
+            Корзина
+          </h1>
         </div>
 
         <div class="goat-cart-body">
@@ -1509,7 +1924,7 @@ class KedsApp {
     const priceVal = new Intl.NumberFormat('ru-RU').format(product.price);
 
     return `
-      <article class="goat-card font-body" data-id="${product.id}">
+      <article class="goat-card font-body" data-id="${product.id}" onclick="window.kedsAppInstance && window.kedsAppInstance.openProductSheetById('${product.id}')">
         <!-- Шапка карточки -->
         <div class="goat-card-header font-body">
           <span class="goat-card-size font-body">${this.escapeHtml(euSizeStr)}</span>
@@ -1555,8 +1970,8 @@ class KedsApp {
     return `
       <div id="sheet-overlay" class="sheet-overlay"></div>
       <div class="product-bottom-sheet">
-        <!-- STANDARD BOTTOM SHEET TOP BLOCK -->
-        <div class="w-9 h-1 rounded-full bg-white/20 mx-auto mt-2.5 mb-1" style="width: 36px; height: 4px; border-radius: 9999px; background-color: rgba(255,255,255,0.20); margin: 10px auto 4px auto;"></div>
+        <!-- STRICT ARCHITECTURAL BOTTOM SHEET TOP BLOCK -->
+        <div class="sheet-drag-handle-strict font-body" aria-hidden="true"></div>
 
         <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
           <h2 class="font-display text-sm font-semibold text-white" style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #FFFFFF; margin: 0;">О товаре</h2>
@@ -1693,10 +2108,10 @@ class KedsApp {
   }
 
   rebindEvents() {
-    // Payment row trigger on Order Review screen
+    // Payment row trigger on Order Review screen -> SELECT MODE
     const paymentRowTrigger = document.getElementById('payment-method-row-trigger');
     if (paymentRowTrigger) {
-      paymentRowTrigger.addEventListener('click', () => this.openPaymentGateway());
+      paymentRowTrigger.addEventListener('click', () => this.openPaymentGateway('select'));
     }
 
     // Payment Modal events
@@ -1708,80 +2123,21 @@ class KedsApp {
     const pmTabs = document.querySelectorAll('.payment-tab-btn[data-pm]');
     pmTabs.forEach(tab => {
       tab.addEventListener('click', (e) => {
-        this.paymentMethod = e.currentTarget.getAttribute('data-pm');
-        this.render();
+        const pm = e.currentTarget.getAttribute('data-pm');
+        if (this.paymentMethod !== pm) {
+          this.paymentMethod = pm;
+          this.updatePaymentTabContent();
+        }
       });
     });
 
-    const cardNumInput = document.getElementById('card-number-input');
-    if (cardNumInput) {
-      cardNumInput.addEventListener('input', (e) => {
-        this.cardNumber = this.formatCardNumber(e.target.value);
-        this.render();
-        const updatedInput = document.getElementById('card-number-input');
-        if (updatedInput) {
-          updatedInput.focus();
-          updatedInput.setSelectionRange(updatedInput.value.length, updatedInput.value.length);
-        }
-      });
-    }
+    this.bindPaymentInnerEvents();
 
-    const cardExpiryInput = document.getElementById('card-expiry-input');
-    if (cardExpiryInput) {
-      cardExpiryInput.addEventListener('input', (e) => {
-        this.cardExpiry = this.formatCardExpiry(e.target.value);
-        this.render();
-        const updatedInput = document.getElementById('card-expiry-input');
-        if (updatedInput) {
-          updatedInput.focus();
-          updatedInput.setSelectionRange(updatedInput.value.length, updatedInput.value.length);
-        }
-      });
-    }
-
-    const cardCvcInput = document.getElementById('card-cvc-input');
-    if (cardCvcInput) {
-      cardCvcInput.addEventListener('input', (e) => {
-        this.cardCvc = e.target.value.replace(/\D/g, '').slice(0, 3);
-        this.render();
-        const updatedInput = document.getElementById('card-cvc-input');
-        if (updatedInput) {
-          updatedInput.focus();
-          updatedInput.setSelectionRange(updatedInput.value.length, updatedInput.value.length);
-        }
-      });
-    }
-
-    const cardHolderInput = document.getElementById('card-holder-input');
-    if (cardHolderInput) {
-      cardHolderInput.addEventListener('input', (e) => {
-        this.cardHolder = e.target.value.toUpperCase();
-      });
-    }
-
-    const cardForm = document.getElementById('payment-card-form');
-    if (cardForm) {
-      cardForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        this.processPaymentSubmit();
-      });
-    }
-
-    const submitSbpBtn = document.getElementById('submit-sbp-payment-btn');
-    if (submitSbpBtn) {
-      submitSbpBtn.addEventListener('click', () => this.processPaymentSubmit());
-    }
-
-    const submitReceiptBtn = document.getElementById('submit-receipt-payment-btn');
-    if (submitReceiptBtn) {
-      submitReceiptBtn.addEventListener('click', () => this.processPaymentSubmit());
-    }
-
-    // Header Search box click trigger -> Live Search Overlay
+    // Header Search box click trigger -> Navigate to search tab
     const headerSearchTrigger = document.getElementById('header-search-trigger');
     if (headerSearchTrigger) {
       headerSearchTrigger.addEventListener('click', () => {
-        this.openLiveSearch();
+        this.setTab('search');
       });
     }
 
@@ -1837,58 +2193,96 @@ class KedsApp {
     }
 
     if (draftMinNumInput) {
-      draftMinNumInput.addEventListener('change', (e) => {
+      draftMinNumInput.addEventListener('input', (e) => {
         let val = parseInt(e.target.value, 10) || 10000;
         if (val < 10000) val = 10000;
         if (val > this.draftMaxPrice - 3000) val = this.draftMaxPrice - 3000;
         this.draftMinPrice = val;
         if (sheetMinRange) sheetMinRange.value = val;
-        this.render();
+        const trackHighlight = document.querySelector('.filter-sheet-drawer .slider-track-highlight');
+        if (trackHighlight) {
+          const minPercent = ((val - 10000) / 90000) * 100;
+          trackHighlight.style.left = `${minPercent}%`;
+        }
       });
     }
 
     if (draftMaxNumInput) {
-      draftMaxNumInput.addEventListener('change', (e) => {
+      draftMaxNumInput.addEventListener('input', (e) => {
         let val = parseInt(e.target.value, 10) || 100000;
         if (val > 100000) val = 100000;
         if (val < this.draftMinPrice + 3000) val = this.draftMinPrice + 3000;
         this.draftMaxPrice = val;
         if (sheetMaxRange) sheetMaxRange.value = val;
-        this.render();
+        const trackHighlight = document.querySelector('.filter-sheet-drawer .slider-track-highlight');
+        if (trackHighlight) {
+          const maxPercent = ((val - 10000) / 90000) * 100;
+          trackHighlight.style.right = `${100 - maxPercent}%`;
+        }
       });
     }
 
-    // Brand Checkboxes in Filter Sheet
+    // Brand Checkboxes in Filter Sheet (In-place DOM update)
     const brandCheckboxes = document.querySelectorAll('[data-brand-toggle]');
     brandCheckboxes.forEach(row => {
       row.addEventListener('click', (e) => {
         const brand = e.currentTarget.getAttribute('data-brand-toggle');
+        const box = row.querySelector('.custom-goat-checkbox');
         if (this.draftBrands.includes(brand)) {
           this.draftBrands = this.draftBrands.filter(b => b !== brand);
+          if (box) {
+            box.classList.remove('checked-white');
+            box.innerHTML = '';
+          }
         } else {
           this.draftBrands.push(brand);
+          if (box) {
+            box.classList.add('checked-white');
+            box.innerHTML = `
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#000000" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            `;
+          }
         }
-        this.render();
+
+        // Update brand count badge in filter drawer header
+        const headerLine = document.querySelector('.filter-sheet-drawer .filter-section-header-line');
+        if (headerLine) {
+          let badge = headerLine.querySelector('.filter-count-badge');
+          if (this.draftBrands.length > 0) {
+            if (!badge) {
+              badge = document.createElement('span');
+              badge.className = 'filter-count-badge';
+              headerLine.appendChild(badge);
+            }
+            badge.textContent = this.draftBrands.length;
+          } else if (badge) {
+            badge.remove();
+          }
+        }
       });
     });
 
-    // Size Rectangular Buttons in Filter Sheet
+    // Size Rectangular Buttons in Filter Sheet (In-place DOM update)
     const sheetSizeBtns = document.querySelectorAll('[data-sheet-size]');
     sheetSizeBtns.forEach(btn => {
       btn.addEventListener('click', (e) => {
         const size = e.currentTarget.getAttribute('data-sheet-size');
         this.draftSize = size;
-        this.render();
+        sheetSizeBtns.forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
       });
     });
 
-    // Sort Buttons in Filter Sheet
+    // Sort Buttons in Filter Sheet (In-place DOM update)
     const sheetSortBtns = document.querySelectorAll('[data-sheet-sort]');
     sheetSortBtns.forEach(btn => {
       btn.addEventListener('click', (e) => {
         const sort = e.currentTarget.getAttribute('data-sheet-sort');
         this.draftSort = sort;
-        this.render();
+        sheetSortBtns.forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
       });
     });
 
@@ -1918,22 +2312,33 @@ class KedsApp {
         } else {
           this.selectedBrands = [brand];
         }
+        this.activeProduct = null;
         this.updateUrl();
         this.render();
       });
     });
 
-    // Live search input live query
+    // Search quick tag chip clicks
+    const searchTagChips = document.querySelectorAll('.search-tag-chip');
+    searchTagChips.forEach(chip => {
+      chip.addEventListener('click', (e) => {
+        const tag = e.currentTarget.getAttribute('data-tag');
+        this.searchQuery = tag;
+        const input = document.getElementById('live-search-input');
+        if (input) input.value = tag;
+        searchTagChips.forEach(c => c.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        this.updateLiveSearchResults();
+      });
+    });
+
+    // Live search input query (In-place update without page re-render)
     const liveInput = document.getElementById('live-search-input');
+
     if (liveInput) {
       liveInput.addEventListener('input', (e) => {
         this.searchQuery = e.target.value;
-        this.render();
-        const updatedLiveInput = document.getElementById('live-search-input');
-        if (updatedLiveInput) {
-          updatedLiveInput.focus();
-          updatedLiveInput.setSelectionRange(updatedLiveInput.value.length, updatedLiveInput.value.length);
-        }
+        this.updateLiveSearchResults();
       });
     }
 
@@ -1942,17 +2347,9 @@ class KedsApp {
     if (clearLiveBtn) {
       clearLiveBtn.addEventListener('click', () => {
         this.searchQuery = '';
-        this.render();
-        const updatedLiveInput = document.getElementById('live-search-input');
-        if (updatedLiveInput) updatedLiveInput.focus();
-      });
-    }
-
-    // Close live search overlay
-    const closeLiveBtn = document.getElementById('close-live-search-btn');
-    if (closeLiveBtn) {
-      closeLiveBtn.addEventListener('click', () => {
-        this.closeLiveSearch();
+        if (liveInput) liveInput.value = '';
+        searchTagChips.forEach(c => c.classList.remove('active'));
+        this.updateLiveSearchResults();
       });
     }
 
@@ -1969,21 +2366,11 @@ class KedsApp {
       });
     });
 
-    // Hotbar search & styles buttons
+    // Hotbar search button
     const hotbarSearchBtn = document.getElementById('hotbar-search-btn');
     if (hotbarSearchBtn) {
       hotbarSearchBtn.addEventListener('click', () => {
         this.openLiveSearch();
-      });
-    }
-
-    const hotbarStylesBtn = document.getElementById('hotbar-styles-btn');
-    if (hotbarStylesBtn) {
-      hotbarStylesBtn.addEventListener('click', () => {
-        if (this.activeTab !== 'catalog') {
-          this.activeTab = 'catalog';
-        }
-        this.openFilterSheet();
       });
     }
 
@@ -2062,13 +2449,23 @@ class KedsApp {
       });
     }
 
-    // Service Filter Chips ('Все', 'Белпочта', 'Европочта')
+    // Service Filter Chips ('Все', 'Белпочта', 'Европочта') (In-place update)
     const serviceChips = document.querySelectorAll('.service-chip-btn');
     serviceChips.forEach(chip => {
       chip.addEventListener('click', (e) => {
         this.providerFilter = e.currentTarget.getAttribute('data-provider');
-        this.updateUrl();
-        this.render();
+        serviceChips.forEach(c => c.classList.remove('active'));
+        e.currentTarget.classList.add('active');
+        const mapDiv = document.getElementById('ymaps-container');
+        if (mapDiv) this.setupMap(mapDiv);
+        const flatList = document.querySelector('.goat-flat-branch-list');
+        if (flatList) {
+          const items = flatList.querySelectorAll('.goat-flat-branch-item');
+          items.forEach(it => {
+            const provider = it.getAttribute('data-provider');
+            it.style.display = (this.providerFilter === 'all' || provider === this.providerFilter) ? 'block' : 'none';
+          });
+        }
       });
     });
 
@@ -2099,16 +2496,21 @@ class KedsApp {
       });
     });
 
-    // Branch search input
+    // Branch search input (In-place filter without re-rendering drawer DOM)
     const branchSearchInput = document.getElementById('branch-search-input');
     if (branchSearchInput) {
       branchSearchInput.addEventListener('input', (e) => {
         this.branchSearchQuery = e.target.value;
-        this.render();
-        const updatedBranchInput = document.getElementById('branch-search-input');
-        if (updatedBranchInput) {
-          updatedBranchInput.focus();
-          updatedBranchInput.setSelectionRange(updatedBranchInput.value.length, updatedBranchInput.value.length);
+        const mapDiv = document.getElementById('ymaps-container');
+        if (mapDiv) this.setupMap(mapDiv);
+        const flatList = document.querySelector('.goat-flat-branch-list');
+        if (flatList) {
+          const q = this.branchSearchQuery.toLowerCase().trim();
+          const items = flatList.querySelectorAll('.goat-flat-branch-item');
+          items.forEach(it => {
+            const txt = it.textContent.toLowerCase();
+            it.style.display = (!q || txt.includes(q)) ? 'block' : 'none';
+          });
         }
       });
     }
@@ -2122,6 +2524,16 @@ class KedsApp {
       });
     });
 
+    // Radio payment card clicks
+    const radioCards = document.querySelectorAll('.tread-radio-card[data-payment-id]');
+    radioCards.forEach(card => {
+      card.addEventListener('click', (e) => {
+        const pmId = e.currentTarget.getAttribute('data-payment-id');
+        this.paymentMethod = pmId;
+        this.render();
+      });
+    });
+
     // Checkout form submit -> TRIGGER PAYMENT GATEWAY
     const checkoutForm = document.getElementById('checkout-form');
     if (checkoutForm) {
@@ -2131,11 +2543,78 @@ class KedsApp {
       });
     }
 
+    // Payment modal submit handlers (TREAD Pay, SBP, ERIP, Receipt, Card)
+    const handlePaymentComplete = (e) => {
+      if (e) e.preventDefault();
+      if (this.isPaymentProcessing) return;
+      this.isPaymentProcessing = true;
+      this.render();
+      setTimeout(() => {
+        this.isPaymentProcessing = false;
+        this.isPaymentModalOpen = false;
+        this.cartItems = [];
+        this.activeTab = 'success';
+        this.render();
+      }, 800);
+    };
+
+    const submitTreadPay = document.getElementById('submit-treadpay-btn');
+    if (submitTreadPay) submitTreadPay.addEventListener('click', handlePaymentComplete);
+
+    const submitSbp = document.getElementById('submit-sbp-payment-btn');
+    if (submitSbp) submitSbp.addEventListener('click', handlePaymentComplete);
+
+    const submitErip = document.getElementById('submit-erip-payment-btn');
+    if (submitErip) submitErip.addEventListener('click', handlePaymentComplete);
+
+    const submitReceipt = document.getElementById('submit-receipt-payment-btn');
+    if (submitReceipt) submitReceipt.addEventListener('click', handlePaymentComplete);
+
+    const cardForm = document.getElementById('payment-card-form');
+    if (cardForm) cardForm.addEventListener('submit', handlePaymentComplete);
+
     // About back button
     const aboutBackBtn = document.getElementById('about-back-btn');
     if (aboutBackBtn) {
       aboutBackBtn.addEventListener('click', () => {
         this.setTab('catalog');
+      });
+    }
+
+    // About menu item clicks
+    const aboutItemRows = document.querySelectorAll('[data-about-id]');
+    aboutItemRows.forEach(row => {
+      row.addEventListener('click', (e) => {
+        const id = e.currentTarget.getAttribute('data-about-id');
+        if (id === 'telegram') {
+          window.open('https://t.me/tread_store', '_blank');
+        } else if (id === 'support') {
+          window.open('https://t.me/tread_support', '_blank');
+        } else if (id === 'privacy') {
+          window.open('https://tread.store/privacy', '_blank');
+        } else if (id === 'terms') {
+          window.open('https://tread.store/terms', '_blank');
+        } else if (id === 'faq') {
+          this.activeInfoSheet = 'faq';
+          this.render();
+        }
+      });
+    });
+
+    // Close Info Sheet Modal handlers
+    const closeInfoBtn = document.getElementById('close-info-sheet-btn');
+    if (closeInfoBtn) {
+      closeInfoBtn.addEventListener('click', () => {
+        this.activeInfoSheet = null;
+        this.render();
+      });
+    }
+
+    const infoOverlay = document.getElementById('info-sheet-overlay');
+    if (infoOverlay) {
+      infoOverlay.addEventListener('click', () => {
+        this.activeInfoSheet = null;
+        this.render();
       });
     }
 
@@ -2210,13 +2689,14 @@ class KedsApp {
       overlay.addEventListener('click', () => this.closeProductSheet());
     }
 
-    // Size chips in sheet
+    // Size chips in sheet (In-place update without re-rendering modal)
     const sizeChips = document.querySelectorAll('.size-chip');
     sizeChips.forEach(chip => {
       chip.addEventListener('click', () => {
         if (!chip.hasAttribute('disabled')) {
           this.selectedSize = chip.getAttribute('data-size');
-          this.render();
+          sizeChips.forEach(c => c.classList.remove('selected'));
+          chip.classList.add('selected');
         }
       });
     });
