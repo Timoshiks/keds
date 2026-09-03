@@ -85,8 +85,19 @@ class KedsApp {
     this.providerFilter = urlParams.get('provider') || 'all';
     this.branchSearchQuery = '';
 
+    // Customer profile & Telegram WebApp states
+    this.telegramUser = null;
+    this.customerName = '';
+    this.customerPhone = '';
+
     // Empty cart items by default
     this.cartItems = [];
+
+    // Load saved cart and profile state from localStorage / TMA CloudStorage
+    this.loadStateFromLocalStorage();
+
+    // Initialize Telegram WebApp SDK & auto-fill profile data
+    this.initTelegramWebApp();
 
     const openId = urlParams.get('open');
     const autoProduct = openId ? this.products.find(p => p.id === openId) : null;
@@ -241,9 +252,113 @@ class KedsApp {
     this.render();
   }
 
+  initTelegramWebApp() {
+    if (window.Telegram?.WebApp) {
+      const tg = window.Telegram.WebApp;
+      tg.ready();
+      tg.expand();
+      try {
+        tg.enableClosingConfirmation();
+      } catch (e) {}
+
+      const tgUser = tg.initDataUnsafe?.user;
+      if (tgUser) {
+        this.telegramUser = tgUser;
+        if (!this.customerName) {
+          const fullName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ');
+          this.customerName = fullName || tgUser.username || '';
+        }
+        if (!this.customerPhone && tgUser.phone_number) {
+          this.customerPhone = tgUser.phone_number;
+        }
+      }
+    }
+  }
+
+  saveStateToLocalStorage() {
+    try {
+      const state = {
+        cartItems: this.cartItems,
+        customerName: this.customerName,
+        customerPhone: this.customerPhone,
+        deliveryType: this.deliveryType,
+        paymentMethod: this.paymentMethod,
+        selectedBranch: this.selectedBranch,
+      };
+      localStorage.setItem('tread_app_state', JSON.stringify(state));
+
+      if (window.Telegram?.WebApp?.CloudStorage) {
+        window.Telegram.WebApp.CloudStorage.setItem('tread_cart', JSON.stringify(this.cartItems));
+      }
+    } catch (err) {
+      console.warn('Error saving state to localStorage:', err);
+    }
+  }
+
+  loadStateFromLocalStorage() {
+    try {
+      const saved = localStorage.getItem('tread_app_state');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.cartItems)) this.cartItems = parsed.cartItems;
+        if (parsed.customerName) this.customerName = parsed.customerName;
+        if (parsed.customerPhone) this.customerPhone = parsed.customerPhone;
+        if (parsed.deliveryType) this.deliveryType = parsed.deliveryType;
+        if (parsed.paymentMethod) this.paymentMethod = parsed.paymentMethod;
+        if (parsed.selectedBranch) this.selectedBranch = parsed.selectedBranch;
+      }
+    } catch (err) {
+      console.warn('Error loading state from localStorage:', err);
+    }
+  }
+
+  async sendCartEvent(action, extraPayload = {}) {
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user || this.telegramUser;
+    const payload = {
+      event: action, // 'cart_item_added', 'cart_item_removed', 'checkout_initiated', 'order_submitted'
+      telegram_id: tgUser?.id || null,
+      username: tgUser?.username || null,
+      first_name: tgUser?.first_name || null,
+      last_name: tgUser?.last_name || null,
+      customer_name: this.customerName || null,
+      customer_phone: this.customerPhone || null,
+      cart_items: this.cartItems.map(i => ({
+        id: i.product.id,
+        name: i.product.name,
+        size: i.selectedSize,
+        price: i.product.price,
+        quantity: i.quantity
+      })),
+      total_items: this.cartItems.reduce((sum, i) => sum + i.quantity, 0),
+      total_amount: this.cartItems.reduce((sum, i) => sum + i.product.price * i.quantity, 0),
+      timestamp: new Date().toISOString(),
+      ...extraPayload
+    };
+
+    console.log(`[TMA Event Hook: ${action}]`, payload);
+
+    if (window.TREAD_BOT_WEBHOOK_URL) {
+      try {
+        await fetch(window.TREAD_BOT_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {
+        console.warn('Failed to send TMA event hook:', err);
+      }
+    }
+  }
+
   setTab(tab) {
     this.activeTab = tab;
     this.activeProduct = null;
+    if (tab === 'checkout') {
+      this.sendCartEvent('checkout_initiated');
+    }
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.selectionChanged();
+    }
     this.updateUrl();
     this.render();
   }
@@ -274,11 +389,18 @@ class KedsApp {
 
   addToCart() {
     if (this.activeProduct) {
+      const addedProduct = this.activeProduct;
+      const size = this.selectedSize || '42 EU';
       this.cartItems.push({
-        product: this.activeProduct,
-        selectedSize: this.selectedSize || '42 EU',
+        product: addedProduct,
+        selectedSize: size,
         quantity: 1,
       });
+      this.saveStateToLocalStorage();
+      this.sendCartEvent('cart_item_added', { product_id: addedProduct.id, name: addedProduct.name, size });
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+      }
     }
     this.activeProduct = null;
     this.selectedSize = null;
@@ -288,7 +410,13 @@ class KedsApp {
   }
 
   removeFromCart(index) {
+    const removedItem = this.cartItems[index];
     this.cartItems.splice(index, 1);
+    this.saveStateToLocalStorage();
+    this.sendCartEvent('cart_item_removed', { removed_item: removedItem });
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+    }
     this.render();
   }
 
@@ -603,6 +731,56 @@ class KedsApp {
           <!-- DIVIDER -->
           <div class="goat-section-divider"></div>
 
+          <!-- RECIPIENT PROFILE & TELEGRAM CONTACT AUTO-FILL BLOCK -->
+          <div class="checkout-section font-body" style="padding: 16px 0;">
+            <div class="shipping-section-title font-body" style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between;">
+              <span>Данные получателя</span>
+              ${(window.Telegram?.WebApp?.initDataUnsafe?.user?.username || this.telegramUser?.username) ? `<span class="mono-provider-badge font-body" style="background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.15); color: var(--text-secondary); text-transform: none; font-weight: 500;">@${this.escapeHtml(window.Telegram?.WebApp?.initDataUnsafe?.user?.username || this.telegramUser?.username)}</span>` : ''}
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <!-- NAME INPUT -->
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <label style="font-size: 11px; color: var(--text-secondary); text-align: left;">Имя и фамилия</label>
+                <input 
+                  type="text" 
+                  id="checkout-customer-name" 
+                  class="goat-underline-input font-body" 
+                  placeholder="Иван Иванов" 
+                  value="${this.escapeHtml(this.customerName || '')}" 
+                />
+              </div>
+
+              <!-- PHONE INPUT + TELEGRAM REQUEST CONTACT BUTTON -->
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <label style="font-size: 11px; color: var(--text-secondary); text-align: left;">Телефон для связи</label>
+                  <button 
+                    type="button" 
+                    id="tg-request-contact-btn" 
+                    class="font-body"
+                    style="background: transparent; border: none; color: var(--accent); font-size: 11px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 0;"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.12.02-1.96 1.25-5.54 3.69-.52.36-1 .54-1.42.53-.47-.01-1.37-.26-2.03-.48-.82-.27-1.47-.42-1.42-.88.03-.24.37-.49 1.02-.75 3.99-1.74 6.66-2.89 8.01-3.46 3.82-1.6 4.62-1.88 5.14-1.89.11 0 .37.03.54.17.14.12.18.28.2.45-.02.07-.02.2-.04.34z"/>
+                    </svg>
+                    Поделиться контактом Telegram
+                  </button>
+                </div>
+                <input 
+                  type="tel" 
+                  id="checkout-customer-phone" 
+                  class="goat-underline-input font-body" 
+                  placeholder="+375 (29) 000-00-00" 
+                  value="${this.escapeHtml(this.customerPhone || '')}" 
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- DIVIDER -->
+          <div class="goat-section-divider"></div>
+
           <!-- SHIPPING SECTION WITH FULL-WIDTH SEGMENTED CONTROL & ADDRESS ROW -->
           <div class="goat-shipping-section font-body" style="padding: 16px 0;">
             <div class="shipping-section-title font-body" style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
@@ -615,6 +793,7 @@ class KedsApp {
                 type="button" 
                 class="ship-segment-btn font-body ${this.deliveryType === 'post' ? 'active' : ''}" 
                 data-type="post"
+                onclick="if(window.kedsAppInstance){window.kedsAppInstance.deliveryType='post';window.kedsAppInstance.render();}"
               >
                 Доставка
               </button>
@@ -622,6 +801,7 @@ class KedsApp {
                 type="button" 
                 class="ship-segment-btn font-body ${this.deliveryType === 'pickup' ? 'active' : ''}" 
                 data-type="pickup"
+                onclick="if(window.kedsAppInstance){window.kedsAppInstance.deliveryType='pickup';window.kedsAppInstance.render();}"
               >
                 Самовывоз
               </button>
@@ -657,10 +837,8 @@ class KedsApp {
 
             <div class="tread-radio-list font-body" style="display: flex; flex-direction: column; gap: 8px;">
               ${[
-                { id: 'tread_pay', title: 'TREAD Pay', subtitle: `4 равных платежа по ${new Intl.NumberFormat('ru-RU').format(Math.round(totalPrice / 4))} ₽ без переплат` },
                 { id: 'card', title: 'Банковская карта', subtitle: 'МИР, Visa, Mastercard' },
                 { id: 'sbp', title: 'СБП', subtitle: 'Система быстрых платежей' },
-                { id: 'erip', title: 'ЕРИП / Расчет', subtitle: 'Оплата в приложении банка (Беларусь)' },
                 { id: 'cash', title: 'Оплата при получении', subtitle: 'Наличными или картой курьеру' }
               ].map(opt => {
                 const isSelected = this.paymentMethod === opt.id;
@@ -709,7 +887,7 @@ class KedsApp {
           <!-- FIXED CTA & DISCLAIMER FOOTER STRICTLY PER PROMPT -->
           <div class="goat-review-sticky-footer font-body">
             <button type="submit" class="goat-large-white-cta-btn font-body">
-              ${this.paymentMethod === 'card' ? 'ОПЛАТИТЬ КАРТОЙ' : this.paymentMethod === 'sbp' ? 'ОПЛАТИТЬ ЧЕРЕЗ СБП' : this.paymentMethod === 'erip' ? 'ОПЛАТИТЬ ЧЕРЕЗ ЕРИП' : this.paymentMethod === 'cash' ? 'ПОДТВЕРДИТЬ ЗАКАЗ' : 'ОПЛАТИТЬ ЧЕРЕЗ TREAD PAY'}
+              ${this.paymentMethod === 'card' ? 'ОПЛАТИТЬ КАРТОЙ' : this.paymentMethod === 'sbp' ? 'ОПЛАТИТЬ ЧЕРЕЗ СБП' : 'ПОДТВЕРДИТЬ ЗАКАЗ'}
             </button>
 
             <p class="goat-disclaimer-text font-body" style="color: var(--text-secondary); font-size: 11px; text-align: center; margin: 0;">
@@ -1087,10 +1265,8 @@ class KedsApp {
     const totalPriceFormatted = new Intl.NumberFormat('ru-RU').format(totalPrice) + ' ₽';
 
     const pmTitles = {
-      tread_pay: 'Оплата через TREAD Pay',
       card: 'Оплата банковской картой',
       sbp: 'Оплата через СБП',
-      erip: 'Оплата через ЕРИП',
       cash: 'Подтверждение заказа',
       upon_receipt: 'Подтверждение заказа'
     };
@@ -1673,8 +1849,8 @@ class KedsApp {
       zoom: this.highlightedBranch ? 13 : 11,
       controls: [],
     }, {
-      restrictMapArea: [[51.0, 23.0], [56.5, 31.5]],
-      minZoom: 6,
+      restrictMapArea: [[-55.0, -170.0], [80.0, 179.0]],
+      minZoom: 4,
       maxZoom: 18,
       suppressMapOpenBlock: true,
     });
@@ -2503,12 +2679,57 @@ class KedsApp {
       });
     }
 
+    // Customer profile inputs persistence
+    const nameInp = document.getElementById('checkout-customer-name');
+    if (nameInp) {
+      nameInp.addEventListener('input', (e) => {
+        this.customerName = e.target.value;
+        this.saveStateToLocalStorage();
+      });
+    }
+
+    const phoneInp = document.getElementById('checkout-customer-phone');
+    if (phoneInp) {
+      phoneInp.addEventListener('input', (e) => {
+        this.customerPhone = e.target.value;
+        this.saveStateToLocalStorage();
+      });
+    }
+
+    // Telegram Native Request Contact Button
+    const reqContactBtn = document.getElementById('tg-request-contact-btn');
+    if (reqContactBtn) {
+      reqContactBtn.addEventListener('click', () => {
+        if (window.Telegram?.WebApp?.requestContact) {
+          window.Telegram.WebApp.requestContact((sent, response) => {
+            console.log('[Telegram Request Contact Response]', sent, response);
+            if (sent && response?.responseUnsafe?.contact?.phone_number) {
+              const phone = response.responseUnsafe.contact.phone_number;
+              this.customerPhone = phone;
+              const inp = document.getElementById('checkout-customer-phone');
+              if (inp) inp.value = phone;
+              this.saveStateToLocalStorage();
+              if (window.Telegram?.WebApp?.HapticFeedback) {
+                window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+              }
+            }
+          });
+        } else {
+          alert('Служба запроса контактов доступна внутри официального клиента Telegram.');
+        }
+      });
+    }
+
     // Delivery text tabs in GOAT checkout ('post' / 'pickup')
-    const shipTabBtns = document.querySelectorAll('.ship-tab-rect');
+    const shipTabBtns = document.querySelectorAll('.ship-segment-btn, .ship-tab-rect');
     shipTabBtns.forEach(btn => {
       btn.addEventListener('click', (e) => {
-        this.deliveryType = e.currentTarget.getAttribute('data-type');
-        this.render();
+        const type = e.currentTarget.getAttribute('data-type');
+        if (type) {
+          this.deliveryType = type;
+          this.saveStateToLocalStorage();
+          this.render();
+        }
       });
     });
 
@@ -2518,30 +2739,80 @@ class KedsApp {
       card.addEventListener('click', (e) => {
         const pmId = e.currentTarget.getAttribute('data-payment-id');
         this.paymentMethod = pmId;
+        this.saveStateToLocalStorage();
         this.render();
       });
     });
 
-    // Checkout form submit -> TRIGGER PAYMENT GATEWAY
+    // Checkout form submit -> TRIGGER PAYMENT GATEWAY / TELEGRAM PAYMENTS
     const checkoutForm = document.getElementById('checkout-form');
     if (checkoutForm) {
       checkoutForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        this.openPaymentGateway();
+        const nInp = document.getElementById('checkout-customer-name');
+        if (nInp) this.customerName = nInp.value;
+        const pInp = document.getElementById('checkout-customer-phone');
+        if (pInp) this.customerPhone = pInp.value;
+        this.saveStateToLocalStorage();
+
+        this.sendCartEvent('order_submitted', {
+          payment_method: this.paymentMethod,
+          delivery_type: this.deliveryType
+        });
+
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+        }
+
+        if (window.Telegram?.WebApp?.openInvoice && window.TREAD_TELEGRAM_INVOICE_URL) {
+          window.Telegram.WebApp.openInvoice(window.TREAD_TELEGRAM_INVOICE_URL, (status) => {
+            if (status === 'paid') {
+              if (window.Telegram?.WebApp?.HapticFeedback) {
+                window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+              }
+              this.cartItems = [];
+              this.saveStateToLocalStorage();
+              this.setTab('success');
+            } else {
+              if (window.Telegram?.WebApp?.HapticFeedback) {
+                window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning');
+              }
+            }
+          });
+        } else {
+          this.openPaymentGateway();
+        }
       });
     }
 
-    // Payment modal submit handlers (TREAD Pay, SBP, ERIP, Receipt, Card)
+    // Payment modal submit handlers
     const handlePaymentComplete = (e) => {
       if (e) e.preventDefault();
       if (this.isPaymentProcessing) return;
       this.isPaymentProcessing = true;
       this.render();
+
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('heavy');
+      }
+
+      if (this.paymentMethod === 'sbp' && window.TREAD_SBP_PAYMENT_URL) {
+        if (window.Telegram?.WebApp?.openLink) {
+          window.Telegram.WebApp.openLink(window.TREAD_SBP_PAYMENT_URL);
+        } else {
+          window.open(window.TREAD_SBP_PAYMENT_URL, '_blank');
+        }
+      }
+
       setTimeout(() => {
         this.isPaymentProcessing = false;
         this.isPaymentModalOpen = false;
         this.cartItems = [];
+        this.saveStateToLocalStorage();
         this.activeTab = 'success';
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        }
         this.render();
       }, 800);
     };
