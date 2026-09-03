@@ -257,6 +257,21 @@ class KedsApp {
       const tg = window.Telegram.WebApp;
       tg.ready();
       tg.expand();
+
+      // Disable Telegram native vertical swipe gesture to prevent bottom sheet collapse
+      if (typeof tg.disableVerticalSwipes === 'function') {
+        try {
+          tg.disableVerticalSwipes();
+        } catch (e) {}
+      }
+
+      // Request Telegram 8.0+ True Fullscreen mode
+      if (typeof tg.requestFullscreen === 'function') {
+        try {
+          tg.requestFullscreen();
+        } catch (e) {}
+      }
+
       try {
         tg.enableClosingConfirmation();
       } catch (e) {}
