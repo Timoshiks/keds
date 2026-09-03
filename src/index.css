@@ -1570,12 +1570,15 @@ h1, h2, h3, h4, h5, h6, .font-display {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
   background-color: #0A0A0A;
   padding-bottom: 160px;
 }
 
 .goat-cart-header {
-  padding: 16px 16px 14px 16px;
+  padding: 16px 12px 12px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1607,10 +1610,12 @@ h1, h2, h3, h4, h5, h6, .font-display {
 }
 
 .goat-cart-body {
-  padding: 0 16px;
+  padding: 0 12px;
   flex: 1;
   display: flex;
   flex-direction: column;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .goat-cart-list {
@@ -1700,6 +1705,9 @@ h1, h2, h3, h4, h5, h6, .font-display {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
   background-color: #0A0A0A;
   padding-bottom: 170px;
 }
@@ -1742,7 +1750,7 @@ h1, h2, h3, h4, h5, h6, .font-display {
 }
 
 .checkout-form {
-  padding: 16px 16px 200px 16px !important;
+  padding: 12px 12px 200px 12px !important;
   display: flex !important;
   flex-direction: column !important;
   flex: 1 1 0% !important;
@@ -1750,6 +1758,8 @@ h1, h2, h3, h4, h5, h6, .font-display {
   overflow-y: auto !important;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .checkout-form::-webkit-scrollbar {
@@ -1765,8 +1775,10 @@ h1, h2, h3, h4, h5, h6, .font-display {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 16px 12px 16px;
+  padding: 16px 12px 12px 12px;
   border-bottom: 1px solid var(--border-subtle);
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .shipping-segmented-wrap {
@@ -2865,6 +2877,9 @@ h1, h2, h3, h4, h5, h6, .font-display {
 /* ABOUT SCREEN REDESIGN STYLES */
 .about-screen-container {
   min-height: 100vh;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   display: flex;
@@ -2875,7 +2890,7 @@ h1, h2, h3, h4, h5, h6, .font-display {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 16px 12px 16px;
+  padding: 16px 12px 12px 12px;
   border-bottom: 1px solid var(--border-subtle) !important;
   position: sticky;
   top: 0;
@@ -2884,6 +2899,8 @@ h1, h2, h3, h4, h5, h6, .font-display {
   -webkit-backdrop-filter: blur(12px);
   z-index: 20;
   flex-shrink: 0;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .about-back-btn,
@@ -2921,8 +2938,9 @@ h1, h2, h3, h4, h5, h6, .font-display {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  padding: 0 16px 84px 16px;
+  padding: 0 12px 84px 12px;
   box-sizing: border-box;
+  width: 100% !important;
 }
 
 .about-brand-hero {

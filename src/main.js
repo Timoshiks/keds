@@ -1918,7 +1918,7 @@ class KedsApp {
     return `
       <div class="goat-cart-container font-body">
         <!-- ШАПКА КОРНЕВОГО ЭКРАНА КОРЗИНЫ С КНОПКОЙ НАЗАД И РАЗДЕЛИТЕЛЬНОЙ ЛИНИЕЙ -->
-        <div class="flex items-center gap-3 px-4 py-3" style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px; background-color: var(--bg-primary); border-bottom: 1px solid var(--border-subtle);">
+        <div class="flex items-center gap-3 px-4 py-3" style="display: flex; align-items: center; gap: 12px; padding: 16px 12px 12px 12px; background-color: var(--bg-primary); border-bottom: 1px solid var(--border-subtle);">
           <button id="close-cart-btn" class="checkout-back-btn font-body" style="position: static; width: 36px; height: 36px; border-radius: 4px; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; color: var(--text-primary); background: transparent; cursor: pointer; flex-shrink: 0;" aria-label="Назад в каталог" onclick="window.kedsAppInstance && window.kedsAppInstance.setTab('catalog')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m15 18-6-6 6-6"/>
