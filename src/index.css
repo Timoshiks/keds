@@ -1573,7 +1573,7 @@ h1, h2, h3, h4, h5, h6, .font-display {
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
-  background-color: #0A0A0A;
+  background-color: var(--bg-primary) !important;
   padding-bottom: 160px;
 }
 
@@ -1708,7 +1708,7 @@ h1, h2, h3, h4, h5, h6, .font-display {
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
-  background-color: #0A0A0A;
+  background-color: var(--bg-primary) !important;
   padding-bottom: 170px;
 }
 
@@ -2764,7 +2764,7 @@ h1, h2, h3, h4, h5, h6, .font-display {
 .mobile-container.cart-mode,
 .mobile-container.about-mode {
   padding-bottom: 0 !important;
-  background-color: #000000 !important;
+  background-color: var(--bg-primary) !important;
 }
 
 /* COMPACT DOCKED BOTTOM HOTBAR PANEL STRICTLY PER USER SPECIFICATIONS */
