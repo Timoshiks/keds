@@ -429,10 +429,12 @@ class KedsApp {
                 aria-label="${tab.label}"
                 onclick="window.kedsAppInstance && window.kedsAppInstance.setTab('${tab.id}')"
               >
-                <span class="hotbar-tab-label font-body">${tab.label}</span>
-                ${(tab.id === 'cart' && tab.count > 0) ? `
-                  <span class="micro-badge tabular-nums font-body">${tab.count}</span>
-                ` : ''}
+                <span class="nav-tab-content font-body">
+                  <span class="hotbar-tab-label font-body">${tab.label}</span>
+                  ${(tab.id === 'cart' && tab.count > 0) ? `
+                    <span class="micro-badge tabular-nums font-body">${tab.count}</span>
+                  ` : ''}
+                </span>
               </button>
             `;
           }).join('')}
@@ -570,8 +572,8 @@ class KedsApp {
 
     return `
         <!-- ЕДИНАЯ ШАПКА ПОЛНОЭКРАННОЙ СТРАНИЦЫ (УНИФИЦИРОВАННАЯ ТИПОГРАФИКА) -->
-        <div class="checkout-header-sticky font-body" style="position: sticky; top: 0; z-index: 30; background-color: #0A0A0A; display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
-          <button id="back-to-cart-btn" class="checkout-back-btn font-body" style="position: static; width: 36px; height: 36px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: #FFFFFF; background: transparent; cursor: pointer; flex-shrink: 0;" aria-label="Назад">
+        <div class="checkout-header-sticky font-body">
+          <button id="back-to-cart-btn" class="checkout-back-btn font-body" style="position: static; width: 36px; height: 36px; border-radius: 4px; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; color: var(--text-primary); background: transparent; cursor: pointer; flex-shrink: 0;" aria-label="Назад">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m15 18-6-6 6-6"/>
             </svg>
@@ -582,7 +584,7 @@ class KedsApp {
         </div>
 
         <!-- MAIN SCROLLABLE ORDER REVIEW CONTENT LOCALIZED STRICTLY PER USER PROMPT -->
-        <form id="checkout-form" class="checkout-form font-body" style="gap: 0; padding-bottom: 160px;">
+        <form id="checkout-form" class="checkout-form font-body" style="gap: 0;">
           
           <!-- TOP PRODUCT SUMMARY CARD (TITLE, SIZE, CONDITION, BOX + RIGHT IMAGE) -->
           <div class="goat-order-product-card font-body">
@@ -603,17 +605,16 @@ class KedsApp {
 
           <!-- SHIPPING SECTION WITH FULL-WIDTH SEGMENTED CONTROL & ADDRESS ROW -->
           <div class="goat-shipping-section font-body" style="padding: 16px 0;">
-            <div class="shipping-section-title font-body" style="font-size: 13px; font-weight: 600; color: #FFFFFF; margin-bottom: 12px;">
+            <div class="shipping-section-title font-body" style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
               Способ получения
             </div>
 
             <!-- FULL-WIDTH SEGMENTED TOGGLE -->
-            <div class="shipping-segmented-wrap font-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; background-color: #121212; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08); margin-bottom: 12px;">
+            <div class="shipping-segmented-wrap font-body">
               <button 
                 type="button" 
                 class="ship-segment-btn font-body ${this.deliveryType === 'post' ? 'active' : ''}" 
                 data-type="post"
-                style="height: 38px; border-radius: 2px; border: none; background: ${this.deliveryType === 'post' ? '#222222' : 'transparent'}; color: ${this.deliveryType === 'post' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.65)'}; font-size: 13px; font-weight: ${this.deliveryType === 'post' ? '600' : '400'}; cursor: pointer; transition: all 0.15s ease;"
               >
                 Доставка
               </button>
@@ -621,27 +622,26 @@ class KedsApp {
                 type="button" 
                 class="ship-segment-btn font-body ${this.deliveryType === 'pickup' ? 'active' : ''}" 
                 data-type="pickup"
-                style="height: 38px; border-radius: 2px; border: none; background: ${this.deliveryType === 'pickup' ? '#222222' : 'transparent'}; color: ${this.deliveryType === 'pickup' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.65)'}; font-size: 13px; font-weight: ${this.deliveryType === 'pickup' ? '600' : '400'}; cursor: pointer; transition: all 0.15s ease;"
               >
                 Самовывоз
               </button>
             </div>
 
             <!-- SEPARATE ADDRESS PICKER LINK ROW -->
-            <div id="open-branch-drawer-btn" class="address-select-row font-body" style="display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; background-color: #121212; border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; cursor: pointer; margin-bottom: 8px; transition: border-color 0.15s ease;">
+            <div id="open-branch-drawer-btn" class="address-select-row font-body">
               <div style="display: flex; flex-direction: column; gap: 2px; text-align: left;">
-                <span class="font-body" style="font-size: 11px; color: rgba(255, 255, 255, 0.65);">Адрес получения / Пункт выдачи</span>
-                <span class="font-body" style="font-size: 13px; font-weight: 500; color: #FFFFFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;">
+                <span class="address-label">Адрес получения / Пункт выдачи</span>
+                <span class="address-value">
                   ${this.selectedBranch ? `${this.selectedBranch.city}, ${this.selectedBranch.address}` : (this.deliveryType === 'pickup' ? 'г. Минск, ул. Ленина, 10 (Шоурум TREAD)' : 'Выберите пункт выдачи или отделение почты')}
                 </span>
               </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 255, 255, 0.65)" stroke-width="2" style="flex-shrink: 0;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="2" style="flex-shrink: 0;">
                 <polyline points="9 18 15 12 9 6"/>
               </svg>
             </div>
 
             <!-- VERIFICATION DISCLAIMER -->
-            <div class="goat-verification-line font-body" style="margin-top: 8px; color: rgba(255, 255, 255, 0.65);">
+            <div class="goat-verification-line font-body" style="margin-top: 8px; color: var(--text-secondary);">
               <span>Пара проходит аутентификацию TREAD Verification.</span>
             </div>
           </div>
@@ -651,7 +651,7 @@ class KedsApp {
 
           <!-- PAYMENT METHOD VERTICAL RADIO CARDS LIST -->
           <div class="checkout-section font-body" style="padding: 16px 0;">
-            <div class="checkout-section-title font-body" style="font-size: 13px; font-weight: 600; color: #FFFFFF; margin-bottom: 12px;">
+            <div class="checkout-section-title font-body" style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px;">
               Способ оплаты
             </div>
 
@@ -668,18 +668,17 @@ class KedsApp {
                   <div 
                     class="tread-radio-card font-body ${isSelected ? 'selected' : ''}" 
                     data-payment-id="${opt.id}"
-                    style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background-color: ${isSelected ? '#181818' : '#121212'}; border: 1px solid ${isSelected ? 'rgba(255, 255, 255, 0.35)' : 'rgba(255, 255, 255, 0.08)'}; border-radius: 4px; cursor: pointer; transition: all 0.15s ease;"
                   >
                     <div style="display: flex; flex-direction: column; gap: 2px; text-align: left;">
-                      <span class="font-body" style="font-size: 13px; font-weight: ${isSelected ? '600' : '400'}; color: #FFFFFF;">
+                      <span class="radio-title">
                         ${opt.title}
                       </span>
-                      ${opt.subtitle ? `<span class="font-body" style="font-size: 11px; color: rgba(255, 255, 255, 0.65);">${opt.subtitle}</span>` : ''}
+                      ${opt.subtitle ? `<span class="radio-subtitle">${opt.subtitle}</span>` : ''}
                     </div>
 
                     <!-- MONOCHROME RADIO INDICATOR -->
-                    <div class="tread-radio-circle" style="width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid ${isSelected ? '#FFFFFF' : 'rgba(255, 255, 255, 0.25)'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                      ${isSelected ? `<div style="width: 8px; height: 8px; border-radius: 50%; background-color: #FFFFFF;"></div>` : ''}
+                    <div class="tread-radio-circle">
+                      ${isSelected ? `<div class="tread-radio-dot"></div>` : ''}
                     </div>
                   </div>
                 `;
@@ -691,19 +690,19 @@ class KedsApp {
           <div class="goat-section-divider"></div>
 
           <!-- SUMMARY FINANCIAL BREAKDOWN BLOCK -->
-          <div class="checkout-financial-summary font-body" style="padding: 16px; background-color: #121212; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08); margin: 16px 0; display: flex; flex-direction: column; gap: 10px;">
-            <div style="display: flex; justify-content: space-between; font-size: 12px; color: rgba(255, 255, 255, 0.65);">
+          <div class="checkout-financial-summary font-body">
+            <div class="checkout-summary-row">
               <span>Товары (${totalCount} шт.)</span>
-              <span class="tabular-nums font-body" style="color: #FFFFFF;">${totalPriceFormatted}</span>
+              <span class="val tabular-nums">${totalPriceFormatted}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; font-size: 12px; color: rgba(255, 255, 255, 0.65);">
+            <div class="checkout-summary-row">
               <span>Доставка</span>
-              <span class="font-body" style="color: #FFFFFF;">Бесплатно</span>
+              <span class="val">Бесплатно</span>
             </div>
-            <div style="height: 1px; background-color: rgba(255,255,255,0.08); margin: 4px 0;"></div>
-            <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600; color: #FFFFFF;">
+            <div class="checkout-summary-divider"></div>
+            <div class="checkout-summary-total">
               <span>Итого к оплате</span>
-              <span class="font-display tabular-nums" style="font-size: 16px; font-weight: 700; color: #FFFFFF;">${totalPriceFormatted}</span>
+              <span class="font-display tabular-nums" style="font-size: 16px; font-weight: 700; color: var(--text-primary);">${totalPriceFormatted}</span>
             </div>
           </div>
 
@@ -713,7 +712,7 @@ class KedsApp {
               ${this.paymentMethod === 'card' ? 'ОПЛАТИТЬ КАРТОЙ' : this.paymentMethod === 'sbp' ? 'ОПЛАТИТЬ ЧЕРЕЗ СБП' : this.paymentMethod === 'erip' ? 'ОПЛАТИТЬ ЧЕРЕЗ ЕРИП' : this.paymentMethod === 'cash' ? 'ПОДТВЕРДИТЬ ЗАКАЗ' : 'ОПЛАТИТЬ ЧЕРЕЗ TREAD PAY'}
             </button>
 
-            <p class="goat-disclaimer-text font-body" style="color: rgba(255, 255, 255, 0.65); font-size: 11px; text-align: center; margin: 0;">
+            <p class="goat-disclaimer-text font-body" style="color: var(--text-secondary); font-size: 11px; text-align: center; margin: 0;">
               Оформляя заказ, вы соглашаетесь с условиями сервиса и правилами возврата.
             </p>
           </div>
@@ -1101,9 +1100,6 @@ class KedsApp {
     return `
       <div class="payment-gateway-overlay font-body">
         <div class="payment-gateway-modal font-body">
-          <!-- STRICT ARCHITECTURAL BOTTOM SHEET TOP BLOCK -->
-          <div class="sheet-drag-handle-strict font-body" aria-hidden="true"></div>
-
           <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
             <h2 class="font-display text-sm font-semibold text-white" style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #FFFFFF; margin: 0;">${modalTitle}</h2>
             <button id="close-payment-modal-btn" class="sheet-close-btn" style="background: transparent; border: none; color: #737373; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s ease;" aria-label="Закрыть">
@@ -1146,9 +1142,9 @@ class KedsApp {
 
     return `
       <div class="about-screen-container font-body">
-        <!-- ЕДИНАЯ ШАПКА КОРНЕВОЙ СТРАНИЦЫ (БЕЗ КНОПОК ВОЗВРАТА) -->
+        <!-- ЕДИНАЯ ШАПКА КОРНЕВОЙ СТРАНИЦЫ (С РАЗДЕЛИТЕЛЬНОЙ ЛИНИЕЙ) -->
         <div class="about-header font-body">
-          <h1 class="about-header-title font-display" style="margin: 0;">О приложении</h1>
+          <h1 class="screen-header-title font-body">О приложении</h1>
         </div>
 
         <div class="about-content-body font-body">
@@ -1282,8 +1278,6 @@ class KedsApp {
     return `
       <div id="info-sheet-overlay" class="sheet-overlay font-body"></div>
       <div class="info-sheet-drawer font-body">
-        <div class="sheet-drag-handle-strict font-body" aria-hidden="true"></div>
-
         <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
           <h2 class="font-display text-sm font-semibold text-white" style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #FFFFFF; margin: 0;">${title}</h2>
           <button id="close-info-sheet-btn" class="sheet-close-btn" style="background: transparent; border: none; color: #737373; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s ease;" aria-label="Закрыть">
@@ -1318,9 +1312,6 @@ class KedsApp {
     return `
       <div id="filter-sheet-overlay" class="sheet-overlay font-body"></div>
       <div class="filter-sheet-drawer font-body">
-        <!-- STRICT ARCHITECTURAL BOTTOM SHEET TOP BLOCK -->
-        <div class="sheet-drag-handle-strict font-body" aria-hidden="true"></div>
-
         <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
           <h2 class="font-display text-sm font-semibold text-white" style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #FFFFFF; margin: 0;">Фильтры</h2>
           <button id="close-filter-sheet-btn" class="sheet-close-btn" style="background: transparent; border: none; color: #737373; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s ease;" aria-label="Закрыть">
@@ -1748,9 +1739,9 @@ class KedsApp {
 
     return `
       <div class="goat-cart-container font-body">
-        <!-- ШАПКА КОРНЕВОГО ЭКРАНА КОРЗИНЫ С КНОПКОЙ НАЗАД (УНИФИЦИРОВАННАЯ ТИПОГРАФИКА) -->
-        <div class="flex items-center gap-3 px-4 py-3" style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px; background-color: #0A0A0A;">
-          <button id="close-cart-btn" class="checkout-back-btn font-body" style="position: static; width: 36px; height: 36px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; color: #FFFFFF; background: transparent; cursor: pointer; flex-shrink: 0;" aria-label="Назад в каталог" onclick="window.kedsAppInstance && window.kedsAppInstance.setTab('catalog')">
+        <!-- ШАПКА КОРНЕВОГО ЭКРАНА КОРЗИНЫ С КНОПКОЙ НАЗАД И РАЗДЕЛИТЕЛЬНОЙ ЛИНИЕЙ -->
+        <div class="flex items-center gap-3 px-4 py-3" style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 12px 16px; background-color: var(--bg-primary); border-bottom: 1px solid var(--border-subtle);">
+          <button id="close-cart-btn" class="checkout-back-btn font-body" style="position: static; width: 36px; height: 36px; border-radius: 4px; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; color: var(--text-primary); background: transparent; cursor: pointer; flex-shrink: 0;" aria-label="Назад в каталог" onclick="window.kedsAppInstance && window.kedsAppInstance.setTab('catalog')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m15 18-6-6 6-6"/>
             </svg>
@@ -1970,9 +1961,6 @@ class KedsApp {
     return `
       <div id="sheet-overlay" class="sheet-overlay"></div>
       <div class="product-bottom-sheet">
-        <!-- STRICT ARCHITECTURAL BOTTOM SHEET TOP BLOCK -->
-        <div class="sheet-drag-handle-strict font-body" aria-hidden="true"></div>
-
         <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.06);">
           <h2 class="font-display text-sm font-semibold text-white" style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: #FFFFFF; margin: 0;">О товаре</h2>
           <button id="close-product-sheet-btn" class="sheet-close-btn" style="background: transparent; border: none; color: #737373; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; transition: color 0.15s ease;" aria-label="Закрыть">
