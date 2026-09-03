@@ -597,13 +597,12 @@ class KedsApp {
           <header class="app-header">
             <div class="header-top">
               <div class="brand-logo">
-                <svg viewBox="0 0 160 32" fill="none" class="logo-svg">
+                <svg viewBox="0 0 26 32" fill="none" class="logo-svg">
                   <g fill="#FF5500">
                     <rect x="2" y="6" width="5" height="20" rx="1.5" />
                     <rect x="10" y="3" width="5" height="26" rx="1.5" />
                     <rect x="18" y="8" width="5" height="16" rx="1.5" />
                   </g>
-                  <text x="34" y="23" fill="#F5F5F5" font-family="Unbounded, sans-serif" font-size="18" font-weight="800" letter-spacing="0.04em">TREAD</text>
                 </svg>
               </div>
             </div>
