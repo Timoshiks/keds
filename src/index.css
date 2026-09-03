@@ -1405,13 +1405,26 @@ h1, h2, h3, h4, h5, h6, .font-display {
 }
 
 /* CATALOG CONTENT & GOAT CARD GRID STRICTLY PER GOAT ASSORTMENT REFERENCE */
-.catalog-content, .cart-main-content {
+.catalog-content {
   flex: 1 1 0% !important;
   min-height: 0 !important;
   overflow-y: auto !important;
   padding: 12px 12px 72px 12px;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.cart-main-content {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  padding: 0 !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .catalog-content::-webkit-scrollbar, .cart-main-content::-webkit-scrollbar {
