@@ -595,18 +595,6 @@ class KedsApp {
         <!-- HEADER (Only rendered on catalog tab) -->
         ${this.activeTab === 'catalog' ? `
           <header class="app-header">
-            <div class="header-top">
-              <div class="brand-logo">
-                <svg viewBox="0 0 26 32" fill="none" class="logo-svg">
-                  <g fill="#FF5500">
-                    <rect x="2" y="6" width="5" height="20" rx="1.5" />
-                    <rect x="10" y="3" width="5" height="26" rx="1.5" />
-                    <rect x="18" y="8" width="5" height="16" rx="1.5" />
-                  </g>
-                </svg>
-              </div>
-            </div>
-
             <!-- SEARCH ROW WITH COMPACT FILTER BUTTON ON RIGHT -->
             <div class="search-row-group">
               <div class="search-box" id="header-search-trigger">
