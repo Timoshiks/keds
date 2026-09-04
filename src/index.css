@@ -43,9 +43,19 @@ html, body {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  width: 100vw;
   overflow: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+
+#app {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 html::-webkit-scrollbar, body::-webkit-scrollbar {
@@ -1789,8 +1799,8 @@ h1, h2, h3, h4, h5, h6, .font-display {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 12px 12px 12px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 12px 12px !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
   width: 100% !important;
   box-sizing: border-box !important;
 }
@@ -2900,15 +2910,16 @@ h1, h2, h3, h4, h5, h6, .font-display {
   flex-direction: column;
 }
 
-.about-header {
+.about-header,
+.goat-cart-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 12px 12px 12px;
+  padding: 12px 12px !important;
   border-bottom: 1px solid var(--border-subtle) !important;
   position: sticky;
   top: 0;
-  background-color: rgba(10, 10, 10, 0.95);
+  background-color: var(--bg-primary);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   z-index: 20;
