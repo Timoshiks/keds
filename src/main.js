@@ -49,7 +49,7 @@ class KedsApp {
 
     // Payment Gateway states
     this.isPaymentModalOpen = urlParams.get('payment') === 'true';
-    this.paymentMethod = urlParams.get('paymentMethod') || 'card'; // 'card', 'sbp', 'upon_receipt'
+    this.paymentMethod = urlParams.get('paymentMethod') || 'tg_pay'; // 'tg_pay', 'card', 'sbp', 'cash'
     this.isPaymentProcessing = false;
     this.cardNumber = '';
     this.cardExpiry = '';
@@ -832,8 +832,9 @@ class KedsApp {
 
             <div class="tread-radio-list font-body" style="display: flex; flex-direction: column; gap: 8px;">
               ${[
-                { id: 'card', title: 'Банковская карта', subtitle: 'МИР, Visa, Mastercard' },
-                { id: 'sbp', title: 'СБП', subtitle: 'Система быстрых платежей' },
+                { id: 'tg_pay', title: 'Telegram Pay', subtitle: 'Сохраненная карта Telegram / Apple Pay / Stars' },
+                { id: 'card', title: 'Банковская карта', subtitle: 'МИР, Visa, Mastercard (ручной ввод)' },
+                { id: 'sbp', title: 'СБП', subtitle: 'Система быстрых платежей (QR-код)' },
                 { id: 'cash', title: 'Оплата при получении', subtitle: 'Наличными или картой курьеру' }
               ].map(opt => {
                 const isSelected = this.paymentMethod === opt.id;
@@ -882,7 +883,7 @@ class KedsApp {
           <!-- FIXED CTA & DISCLAIMER FOOTER STRICTLY PER PROMPT -->
           <div class="goat-review-sticky-footer font-body">
             <button type="submit" class="goat-large-white-cta-btn font-body">
-              ${this.paymentMethod === 'card' ? 'ОПЛАТИТЬ КАРТОЙ' : this.paymentMethod === 'sbp' ? 'ОПЛАТИТЬ ЧЕРЕЗ СБП' : 'ПОДТВЕРДИТЬ ЗАКАЗ'}
+              ${this.paymentMethod === 'tg_pay' ? 'ОПЛАТИТЬ ЧЕРЕЗ TELEGRAM PAY' : this.paymentMethod === 'card' ? 'ОПЛАТИТЬ КАРТОЙ' : this.paymentMethod === 'sbp' ? 'ОПЛАТИТЬ ЧЕРЕЗ СБП' : 'ПОДТВЕРДИТЬ ЗАКАЗ'}
             </button>
 
             <p class="goat-disclaimer-text font-body" style="color: var(--text-secondary); font-size: 11px; text-align: center; margin: 0;">
@@ -1105,6 +1106,39 @@ class KedsApp {
 
     const isSelect = this.paymentModalMode === 'select';
 
+    if (this.paymentMethod === 'tg_pay') {
+      const submitText = this.isPaymentProcessing
+        ? '<div class="payment-spinner-loader font-body"><span class="spinner-circle"></span>Открытие Telegram Pay...</div>'
+        : 'ОПЛАТИТЬ ' + totalPriceFormatted + ' ЧЕРЕЗ TELEGRAM';
+      const disabledAttr = this.isPaymentProcessing ? 'disabled' : '';
+      const loadingClass = this.isPaymentProcessing ? 'loading' : '';
+
+      return `
+        <div class="upon-receipt-container font-body" style="padding: 24px 16px; text-align: center;">
+          <div class="upon-icon-wrap font-body" style="width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 2L11 13"/>
+              <path d="M22 2L15 22L11 13L2 9L22 2Z"/>
+            </svg>
+          </div>
+          <div class="upon-title font-display" style="font-size: 16px; font-weight: 700; color: #FFFFFF; margin-bottom: 8px;">
+            Telegram Payments (Native)
+          </div>
+          <div class="upon-subtext font-body" style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px;">
+            Оплата происходит через нативный шлюз Telegram. Ваши привязанные карты в Telegram подтянутся автоматически!
+          </div>
+          <button 
+            type="button" 
+            id="submit-tg-pay-btn"
+            class="goat-checkout-cta-btn font-body ${loadingClass}"
+            ${disabledAttr}
+          >
+            ${submitText}
+          </button>
+        </div>
+      `;
+    }
+
     if (this.paymentMethod === 'card') {
       const badgeHtml = cardBrandLogo ? '<span class="card-brand-detected-badge font-display">' + cardBrandLogo + '</span>' : '';
       const submitText = this.isPaymentProcessing
@@ -1260,6 +1294,7 @@ class KedsApp {
     const totalPriceFormatted = new Intl.NumberFormat('ru-RU').format(totalPrice) + ' ₽';
 
     const pmTitles = {
+      tg_pay: 'Telegram Pay',
       card: 'Оплата банковской картой',
       sbp: 'Оплата через СБП',
       cash: 'Подтверждение заказа',
@@ -2811,6 +2846,9 @@ class KedsApp {
         this.render();
       }, 800);
     };
+
+    const submitTgPayBtn = document.getElementById('submit-tg-pay-btn');
+    if (submitTgPayBtn) submitTgPayBtn.addEventListener('click', handlePaymentComplete);
 
     const submitTreadPay = document.getElementById('submit-treadpay-btn');
     if (submitTreadPay) submitTreadPay.addEventListener('click', handlePaymentComplete);
