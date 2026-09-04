@@ -2794,23 +2794,53 @@ class KedsApp {
           window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
         }
 
-        if (window.Telegram?.WebApp?.openInvoice && window.TREAD_TELEGRAM_INVOICE_URL) {
-          window.Telegram.WebApp.openInvoice(window.TREAD_TELEGRAM_INVOICE_URL, (status) => {
-            if (status === 'paid') {
-              if (window.Telegram?.WebApp?.HapticFeedback) {
-                window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+        if (this.paymentMethod === 'tg_pay') {
+          if (window.Telegram?.WebApp?.openInvoice && window.TREAD_TELEGRAM_INVOICE_URL) {
+            window.Telegram.WebApp.openInvoice(window.TREAD_TELEGRAM_INVOICE_URL, (status) => {
+              if (status === 'paid') {
+                if (window.Telegram?.WebApp?.HapticFeedback) {
+                  window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+                }
+                this.cartItems = [];
+                this.saveStateToLocalStorage();
+                this.setTab('success');
               }
-              this.cartItems = [];
-              this.saveStateToLocalStorage();
-              this.setTab('success');
-            } else {
-              if (window.Telegram?.WebApp?.HapticFeedback) {
-                window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning');
-              }
-            }
-          });
+            });
+          } else if (window.Telegram?.WebApp?.openInvoice && window.TREAD_BOT_TOKEN) {
+            const totalPrice = this.cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+            fetch('/api/create-invoice', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                amount: totalPrice,
+                title: 'Заказ TREAD Sneaker Shop',
+                description: 'Тестовая оплата заказа через Telegram Pay',
+                bot_token: window.TREAD_BOT_TOKEN
+              })
+            })
+              .then(res => res.json())
+              .then(data => {
+                if (data.invoice_url) {
+                  window.Telegram.WebApp.openInvoice(data.invoice_url, (status) => {
+                    if (status === 'paid') {
+                      if (window.Telegram?.WebApp?.HapticFeedback) {
+                        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+                      }
+                      this.cartItems = [];
+                      this.saveStateToLocalStorage();
+                      this.setTab('success');
+                    }
+                  });
+                } else {
+                  this.openPaymentGateway('tg_pay');
+                }
+              })
+              .catch(() => this.openPaymentGateway('tg_pay'));
+          } else {
+            this.openPaymentGateway('tg_pay');
+          }
         } else {
-          this.openPaymentGateway();
+          this.openPaymentGateway(this.paymentMethod);
         }
       });
     }
