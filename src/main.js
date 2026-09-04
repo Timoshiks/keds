@@ -258,17 +258,10 @@ class KedsApp {
       tg.ready();
       tg.expand();
 
-      // Disable Telegram native vertical swipe gesture to prevent bottom sheet collapse
-      if (typeof tg.disableVerticalSwipes === 'function') {
+      // Enable Telegram native vertical swipe gesture for standard sheet (шторка) behavior
+      if (typeof tg.enableVerticalSwipes === 'function') {
         try {
-          tg.disableVerticalSwipes();
-        } catch (e) {}
-      }
-
-      // Request Telegram 8.0+ True Fullscreen mode
-      if (typeof tg.requestFullscreen === 'function') {
-        try {
-          tg.requestFullscreen();
+          tg.enableVerticalSwipes();
         } catch (e) {}
       }
 
