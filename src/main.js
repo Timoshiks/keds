@@ -2795,19 +2795,16 @@ class KedsApp {
         }
 
         if (this.paymentMethod === 'tg_pay') {
-          if (window.Telegram?.WebApp?.openInvoice && window.TREAD_TELEGRAM_INVOICE_URL) {
-            window.Telegram.WebApp.openInvoice(window.TREAD_TELEGRAM_INVOICE_URL, (status) => {
-              if (status === 'paid') {
-                if (window.Telegram?.WebApp?.HapticFeedback) {
-                  window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-                }
-                this.cartItems = [];
-                this.saveStateToLocalStorage();
-                this.setTab('success');
-              }
-            });
-          } else if (window.Telegram?.WebApp?.openInvoice && window.TREAD_BOT_TOKEN) {
+          if (window.Telegram?.WebApp?.openInvoice) {
             const totalPrice = this.cartItems.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+
+            const submitBtn = checkoutForm.querySelector('button[type="submit"]');
+            const originalBtnText = submitBtn ? submitBtn.innerHTML : '';
+            if (submitBtn) {
+              submitBtn.disabled = true;
+              submitBtn.innerHTML = 'Загрузка инвойса Telegram...';
+            }
+
             fetch('/api/create-invoice', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -2815,12 +2812,18 @@ class KedsApp {
                 amount: totalPrice,
                 title: 'Заказ TREAD Sneaker Shop',
                 description: 'Тестовая оплата заказа через Telegram Pay',
-                bot_token: window.TREAD_BOT_TOKEN
+                bot_token: window.TREAD_BOT_TOKEN || null
               })
             })
               .then(res => res.json())
               .then(data => {
+                if (submitBtn) {
+                  submitBtn.disabled = false;
+                  submitBtn.innerHTML = originalBtnText;
+                }
+
                 if (data.invoice_url) {
+                  // OPEN TELEGRAM NATIVE INVOICE WINDOW
                   window.Telegram.WebApp.openInvoice(data.invoice_url, (status) => {
                     if (status === 'paid') {
                       if (window.Telegram?.WebApp?.HapticFeedback) {
@@ -2829,13 +2832,30 @@ class KedsApp {
                       this.cartItems = [];
                       this.saveStateToLocalStorage();
                       this.setTab('success');
+                    } else if (status === 'cancelled') {
+                      if (window.Telegram?.WebApp?.HapticFeedback) {
+                        window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning');
+                      }
                     }
                   });
                 } else {
-                  this.openPaymentGateway('tg_pay');
+                  // Inform user that TELEGRAM_BOT_TOKEN is needed on Vercel
+                  const botToken = prompt(
+                    'Отлично! Тестовый провайдер подключен.\n\nВведите ваш TELEGRAM_BOT_TOKEN (из @BotFather) для генерации нативной тестовой карты в Telegram, или укажите его в Vercel Settings -> Environment Variables:'
+                  );
+                  if (botToken) {
+                    window.TREAD_BOT_TOKEN = botToken.trim();
+                    checkoutForm.dispatchEvent(new Event('submit'));
+                  }
                 }
               })
-              .catch(() => this.openPaymentGateway('tg_pay'));
+              .catch(err => {
+                if (submitBtn) {
+                  submitBtn.disabled = false;
+                  submitBtn.innerHTML = originalBtnText;
+                }
+                alert('Ошибка сервера при генерации инвойса: ' + err.message);
+              });
           } else {
             this.openPaymentGateway('tg_pay');
           }
