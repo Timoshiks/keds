@@ -43,7 +43,11 @@ export default async function handler(req, res) {
         currency: 'RUB',
         prices: [
           { label: 'Кроссовки TREAD', amount: orderAmount }
-        ]
+        ],
+        need_name: true,
+        need_phone_number: true,
+        send_phone_number_to_provider: true,
+        is_flexible: false
       })
     });
 
