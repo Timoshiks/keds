@@ -52,6 +52,13 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: data.description || 'Failed to generate Telegram Invoice link' });
     }
 
+    // Auto-register webhook for pre_checkout_query handling
+    const host = req.headers.host || req.headers['x-forwarded-host'];
+    if (host && botToken) {
+      const webhookUrl = `https://${host}/api/telegram-webhook`;
+      fetch(`https://api.telegram.org/bot${botToken}/setWebhook?url=${webhookUrl}`).catch(() => {});
+    }
+
     return res.status(200).json({ invoice_url: data.result });
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Internal server error' });
