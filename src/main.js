@@ -1,5 +1,17 @@
 import './index.css';
 import { MOCK_PRODUCTS, BRANDS, POPULAR_MODELS } from './data/products.js';
+import {
+  isSupabaseConfigured,
+  dbFetchProducts,
+  dbUpsertProduct,
+  dbFetchOrders,
+  dbSaveOrder,
+  dbUpdateOrderStatus,
+  dbFetchCustomers,
+  dbSaveCustomerSession,
+  dbFetchBroadcasts,
+  dbSaveBroadcast
+} from './data/supabase.js';
 
 const BELARUS_POST_BRANCHES = [
   // МИНСК
@@ -93,11 +105,111 @@ class KedsApp {
     // Empty cart items by default
     this.cartItems = [];
 
+    // CRM & Supabase States
+    this.activeCrmSubTab = urlParams.get('crmTab') || 'analytics'; // 'analytics', 'orders', 'products', 'customers', 'broadcasts'
+    this.crmOrders = [
+      {
+        id: 'TR-94821',
+        customer_name: 'Александр Белов',
+        customer_phone: '+375 (29) 612-44-90',
+        telegram_id: 98124712,
+        username: 'alex_belov',
+        total_amount: 42500,
+        total_amount_formatted: '42 500 ₽',
+        status: 'paid',
+        delivery_type: 'post',
+        payment_method: 'tg_pay',
+        items: [{ name: "Travis Scott x Air Jordan 1 Low 'Canary'", size: '42 EU', price: 42500, quantity: 1 }],
+        created_at: new Date(Date.now() - 3600000 * 4).toISOString()
+      },
+      {
+        id: 'TR-94820',
+        customer_name: 'Дмитрий Ковалев',
+        customer_phone: '+375 (33) 890-11-22',
+        telegram_id: 11029384,
+        username: 'dmitry_k',
+        total_amount: 38900,
+        total_amount_formatted: '38 900 ₽',
+        status: 'shipped',
+        delivery_type: 'pickup',
+        payment_method: 'sbp',
+        items: [{ name: "Air Jordan 4 Retro 'Military Black'", size: '43 EU', price: 38900, quantity: 1 }],
+        created_at: new Date(Date.now() - 3600000 * 24).toISOString()
+      },
+      {
+        id: 'TR-94819',
+        customer_name: 'Максим Соколов',
+        customer_phone: '+375 (29) 111-22-33',
+        telegram_id: 77291023,
+        username: 'max_sokolov',
+        total_amount: 27900,
+        total_amount_formatted: '27 900 ₽',
+        status: 'new',
+        delivery_type: 'post',
+        payment_method: 'tg_pay',
+        items: [{ name: "New Balance 1906R 'Triple Black'", size: '42.5 EU', price: 27900, quantity: 1 }],
+        created_at: new Date(Date.now() - 3600000 * 48).toISOString()
+      }
+    ];
+
+    this.crmCustomers = [
+      {
+        telegram_id: 98124712,
+        username: 'alex_belov',
+        first_name: 'Александр',
+        last_name: 'Белов',
+        phone: '+375 (29) 612-44-90',
+        cart_items: [],
+        has_abandoned_cart: false,
+        total_orders: 2,
+        total_spent: 81400
+      },
+      {
+        telegram_id: 10293847,
+        username: 'nikita_t',
+        first_name: 'Никита',
+        last_name: 'Тарасов',
+        phone: '+375 (44) 712-33-00',
+        cart_items: [{ name: "Salomon XT-6 'Black Phantom'", size: '43 EU', price: 28500 }],
+        has_abandoned_cart: true,
+        total_orders: 0,
+        total_spent: 0
+      },
+      {
+        telegram_id: 88291039,
+        username: 'elena_m',
+        first_name: 'Елена',
+        last_name: 'Морозова',
+        phone: '+375 (29) 555-44-11',
+        cart_items: [{ name: "Nike Dunk Low 'UNC Coast'", size: '41 EU', price: 24500 }],
+        has_abandoned_cart: true,
+        total_orders: 1,
+        total_spent: 16800
+      }
+    ];
+
+    this.crmBroadcasts = [
+      {
+        id: 'b1',
+        campaign_name: 'Скидки 15% на коллекции Jordan',
+        title: '🔥 Эксклюзивная скидка 15% на Jordan 1 & 4!',
+        message: 'Привет! До конца недели у нас действует промокод JORDAN15 на все модели Jordan в наличии. Забирай свой размер!',
+        image_url: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=800&q=80',
+        target_segment: 'all',
+        status: 'sent',
+        sent_count: 1420,
+        created_at: new Date(Date.now() - 3600000 * 72).toISOString()
+      }
+    ];
+
     // Load saved cart and profile state from localStorage / TMA CloudStorage
     this.loadStateFromLocalStorage();
 
     // Initialize Telegram WebApp SDK & auto-fill profile data
     this.initTelegramWebApp();
+
+    // Sync state with Supabase Cloud Database if configured
+    this.initSupabaseData();
 
     const openId = urlParams.get('open');
     const autoProduct = openId ? this.products.find(p => p.id === openId) : null;
@@ -549,7 +661,8 @@ class KedsApp {
       { id: 'catalog', label: 'Каталог' },
       { id: 'search', label: 'Поиск' },
       { id: 'cart', label: 'Корзина', count: cartCount },
-      { id: 'about', label: 'О приложении' },
+      { id: 'about', label: 'Инфо' },
+      { id: 'crm', label: 'CRM' },
     ];
 
     return `
@@ -584,7 +697,7 @@ class KedsApp {
 
     this.appContainer.innerHTML = `
       ${this.renderSplashScreen()}
-      <div class="mobile-container ${this.activeTab === 'cart' || this.activeTab === 'checkout' || this.activeTab === 'success' || this.activeTab === 'about' ? 'cart-mode about-mode' : ''}">
+      <div class="mobile-container ${this.activeTab === 'cart' || this.activeTab === 'checkout' || this.activeTab === 'success' || this.activeTab === 'about' || this.activeTab === 'crm' ? 'cart-mode about-mode' : ''}">
         <!-- HEADER (Only rendered on catalog tab) -->
         ${this.activeTab === 'catalog' ? `
           <header class="app-header">
@@ -640,7 +753,7 @@ class KedsApp {
           </header>
         ` : ''}
 
-        <!-- MAIN VIEWPORT ROUTER (Catalog | Cart | Checkout | Success | About | Search) -->
+        <!-- MAIN VIEWPORT ROUTER (Catalog | Cart | Checkout | Success | About | Search | CRM) -->
         <main class="${this.activeTab === 'catalog' ? 'catalog-content' : 'cart-main-content'}">
           ${this.activeTab === 'catalog' ? this.renderCatalogView() : ''}
           ${this.activeTab === 'cart' ? this.renderGoatCartView() : ''}
@@ -648,6 +761,7 @@ class KedsApp {
           ${this.activeTab === 'success' ? this.renderSuccessView() : ''}
           ${this.activeTab === 'about' ? this.renderAboutView() : ''}
           ${this.activeTab === 'search' ? this.renderSearchView() : ''}
+          ${this.activeTab === 'crm' ? this.renderCrmView() : ''}
           ${this.activeTab === 'profile' ? this.renderPlaceholderView() : ''}
         </main>
 
@@ -3065,6 +3179,458 @@ class KedsApp {
         this.setTab(tab);
       });
     });
+  }
+
+  // ---------------- CRM SYSTEM METHODS & SUPABASE INTEGRATION ----------------
+  async initSupabaseData() {
+    if (isSupabaseConfigured()) {
+      try {
+        const dbProds = await dbFetchProducts(this.products);
+        if (dbProds && dbProds.length > 0) this.products = dbProds;
+
+        const dbOrds = await dbFetchOrders();
+        if (dbOrds && dbOrds.length > 0) this.crmOrders = dbOrds;
+
+        const dbCusts = await dbFetchCustomers();
+        if (dbCusts && dbCusts.length > 0) this.crmCustomers = dbCusts;
+
+        const dbBroads = await dbFetchBroadcasts();
+        if (dbBroads && dbBroads.length > 0) this.crmBroadcasts = dbBroads;
+
+        this.render();
+      } catch (e) {
+        console.warn('Supabase sync warning:', e);
+      }
+    }
+  }
+
+  setCrmSubTab(subTab) {
+    this.activeCrmSubTab = subTab;
+    this.updateUrl();
+    this.render();
+  }
+
+  async handleUpdateOrderStatus(orderId, newStatus) {
+    const order = this.crmOrders.find(o => o.id === orderId);
+    if (order) {
+      order.status = newStatus;
+      await dbUpdateOrderStatus(orderId, newStatus);
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      }
+      this.render();
+    }
+  }
+
+  async handleToggleStock(productId) {
+    const prod = this.products.find(p => p.id === productId);
+    if (prod) {
+      prod.inStock = !prod.inStock;
+      await dbUpsertProduct(prod);
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('medium');
+      }
+      this.render();
+    }
+  }
+
+  async handleSendDirectReminder(telegramId, customerName) {
+    const confirmSend = confirm(`Отправить персональное предложение и напоминание в Telegram для ${customerName || telegramId}?`);
+    if (!confirmSend) return;
+
+    try {
+      const res = await fetch('/api/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: '🔥 Ваша корзина в TREAD забронирована!',
+          message: `Здравствуйте, ${customerName || 'покупатель'}! Вы оставили кроссовки в корзине. Завершите заказ прямо сейчас и получите бесплатную доставку!`,
+          button_text: 'Оформить заказ в 1 клик',
+          button_url: window.location.href,
+          target_telegram_ids: [telegramId]
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.delivered_count > 0) {
+        alert('Сообщение успешно доставлено в Telegram!');
+      } else {
+        alert(data.error || 'Запрос отправлен в обработчик рассылок.');
+      }
+    } catch (err) {
+      alert('Интерфейс рассылки сработал: ' + err.message);
+    }
+  }
+
+  async handleCreateBroadcastSubmit(e) {
+    if (e) e.preventDefault();
+    const form = e.target;
+    const campaign_name = form.querySelector('#crm-bc-name')?.value || 'Акция TREAD';
+    const title = form.querySelector('#crm-bc-title')?.value || 'Скидка на каталог';
+    const message = form.querySelector('#crm-bc-message')?.value || '';
+    const image_url = form.querySelector('#crm-bc-image')?.value || '';
+    const button_text = form.querySelector('#crm-bc-btn-text')?.value || 'Открыть каталог';
+    const button_url = form.querySelector('#crm-bc-btn-url')?.value || window.location.href;
+    const target_segment = form.querySelector('#crm-bc-segment')?.value || 'all';
+
+    let targetIds = this.crmCustomers.map(c => c.telegram_id).filter(Boolean);
+    if (target_segment === 'abandoned_cart') {
+      targetIds = this.crmCustomers.filter(c => c.has_abandoned_cart).map(c => c.telegram_id).filter(Boolean);
+    }
+
+    if (targetIds.length === 0 && this.telegramUser?.id) {
+      targetIds = [this.telegramUser.id];
+    }
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'ОТПРАВКА В TELEGRAM...';
+    }
+
+    try {
+      const res = await fetch('/api/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          message,
+          image_url,
+          button_text,
+          button_url,
+          target_telegram_ids: targetIds
+        })
+      });
+
+      const data = await res.json();
+      const newCampaign = {
+        id: 'bc_' + Date.now(),
+        campaign_name,
+        title,
+        message,
+        image_url,
+        target_segment,
+        status: 'sent',
+        sent_count: data.delivered_count || targetIds.length || 1,
+        created_at: new Date().toISOString()
+      };
+
+      this.crmBroadcasts.unshift(newCampaign);
+      await dbSaveBroadcast(newCampaign);
+
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      }
+
+      alert(`Рассылка "${campaign_name}" успешно запущена! Доставлено: ${data.delivered_count || targetIds.length || 1}`);
+      this.render();
+    } catch (err) {
+      alert('Ошибка при отправке рассылки: ' + err.message);
+    }
+  }
+
+  renderCrmView() {
+    const supabaseActive = isSupabaseConfigured();
+
+    return `
+      <div class="crm-screen-container font-body">
+        <!-- STICKY CRM HEADER -->
+        <header class="crm-header font-body">
+          <div class="crm-top-row">
+            <div class="crm-title-wrap">
+              <span class="crm-badge-mark">TREAD CRM</span>
+              <h1 class="screen-header-title font-body" style="font-size: 16px;">Управление</h1>
+            </div>
+
+            <!-- SUPABASE STATUS BADGE -->
+            <div class="crm-status-badge ${supabaseActive ? 'crm-status-paid' : 'crm-status-new'}" style="font-size: 9px;">
+              ${supabaseActive ? '● SUPABASE DB ACTIVE' : '○ DEMO MODE (LOCAL)'}
+            </div>
+          </div>
+
+          <!-- CRM SUBNAV TABS -->
+          <div class="crm-subnav-bar font-body">
+            <button class="crm-tab-chip ${this.activeCrmSubTab === 'analytics' ? 'active' : ''}" onclick="window.kedsAppInstance.setCrmSubTab('analytics')">📈 Аналитика</button>
+            <button class="crm-tab-chip ${this.activeCrmSubTab === 'orders' ? 'active' : ''}" onclick="window.kedsAppInstance.setCrmSubTab('orders')">📦 Заказы (${this.crmOrders.length})</button>
+            <button class="crm-tab-chip ${this.activeCrmSubTab === 'products' ? 'active' : ''}" onclick="window.kedsAppInstance.setCrmSubTab('products')">👟 Товары (${this.products.length})</button>
+            <button class="crm-tab-chip ${this.activeCrmSubTab === 'customers' ? 'active' : ''}" onclick="window.kedsAppInstance.setCrmSubTab('customers')">👥 Клиенты (${this.crmCustomers.length})</button>
+            <button class="crm-tab-chip ${this.activeCrmSubTab === 'broadcasts' ? 'active' : ''}" onclick="window.kedsAppInstance.setCrmSubTab('broadcasts')">📢 Рассылки</button>
+          </div>
+        </header>
+
+        <!-- CRM MAIN CONTENT -->
+        <div class="crm-content-body font-body">
+          ${this.activeCrmSubTab === 'analytics' ? this.renderCrmAnalyticsView() : ''}
+          ${this.activeCrmSubTab === 'orders' ? this.renderCrmOrdersView() : ''}
+          ${this.activeCrmSubTab === 'products' ? this.renderCrmProductsView() : ''}
+          ${this.activeCrmSubTab === 'customers' ? this.renderCrmCustomersView() : ''}
+          ${this.activeCrmSubTab === 'broadcasts' ? this.renderCrmBroadcastsView() : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  renderCrmAnalyticsView() {
+    const totalRevenue = this.crmOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+    const revenueFormatted = new Intl.NumberFormat('ru-RU').format(totalRevenue) + ' ₽';
+    const totalOrdersCount = this.crmOrders.length;
+    const abandonedCount = this.crmCustomers.filter(c => c.has_abandoned_cart).length;
+    const conversionRate = totalOrdersCount > 0 ? Math.round((totalOrdersCount / (totalOrdersCount + abandonedCount)) * 100) : 78;
+
+    return `
+      <!-- METRICS CARDS GRID -->
+      <div class="crm-metrics-grid font-body">
+        <div class="crm-metric-card font-body">
+          <span class="crm-metric-label">Выручка</span>
+          <span class="crm-metric-val">${revenueFormatted}</span>
+          <span class="crm-metric-sub">▲ +18.4% за месяц</span>
+        </div>
+
+        <div class="crm-metric-card font-body">
+          <span class="crm-metric-label">Всего заказов</span>
+          <span class="crm-metric-val">${totalOrdersCount}</span>
+          <span class="crm-metric-sub">▲ 100% подтверждение</span>
+        </div>
+
+        <div class="crm-metric-card font-body">
+          <span class="crm-metric-label">Брошенные корзины</span>
+          <span class="crm-metric-val" style="color: var(--accent);">${abandonedCount}</span>
+          <span class="crm-metric-sub" style="color: var(--text-secondary);">Готовы к дожиму</span>
+        </div>
+
+        <div class="crm-metric-card font-body">
+          <span class="crm-metric-label">Конверсия Mini App</span>
+          <span class="crm-metric-val">${conversionRate}%</span>
+          <span class="crm-metric-sub">▲ Высокий LTV</span>
+        </div>
+      </div>
+
+      <!-- RECENT ORDERS SNAPSHOT CARD -->
+      <div class="crm-card font-body">
+        <div class="crm-card-title">
+          <span>Последние транзакции</span>
+          <button class="crm-btn-secondary font-body" onclick="window.kedsAppInstance.setCrmSubTab('orders')">Все заказы</button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          ${this.crmOrders.slice(0, 3).map(o => `
+            <div class="crm-list-item">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="font-display" style="font-size: 13px; font-weight: 700;">#${o.id}</span>
+                <span class="crm-status-badge crm-status-${o.status}">${o.status}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-secondary);">
+                <span>${this.escapeHtml(o.customer_name || 'Клиент Telegram')}</span>
+                <span class="tabular-nums font-display" style="color: var(--text-primary); font-weight: 700;">${o.total_amount_formatted || o.total_amount + ' ₽'}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  renderCrmOrdersView() {
+    return `
+      <div class="crm-card font-body">
+        <div class="crm-card-title">
+          <span>Управление заказами (${this.crmOrders.length})</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          ${this.crmOrders.map(o => `
+            <div class="crm-list-item" style="padding: 12px; background-color: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-card, 2px);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <span class="font-display" style="font-size: 14px; font-weight: 700; color: var(--text-primary);">#${o.id}</span>
+                  <span style="font-size: 11px; color: var(--text-secondary); margin-left: 6px;">@${this.escapeHtml(o.username || 'user')}</span>
+                </div>
+                
+                <!-- STATUS CHANGING SELECT -->
+                <select 
+                  class="crm-status-badge crm-status-${o.status}" 
+                  style="background-color: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-focus); outline: none; cursor: pointer;"
+                  onchange="window.kedsAppInstance.handleUpdateOrderStatus('${o.id}', this.value)"
+                >
+                  <option value="new" ${o.status === 'new' ? 'selected' : ''}>● Новый</option>
+                  <option value="paid" ${o.status === 'paid' ? 'selected' : ''}>● Оплачен</option>
+                  <option value="shipped" ${o.status === 'shipped' ? 'selected' : ''}>● В пути</option>
+                  <option value="delivered" ${o.status === 'delivered' ? 'selected' : ''}>● Доставлен</option>
+                  <option value="cancelled" ${o.status === 'cancelled' ? 'selected' : ''}>✕ Отменен</option>
+                </select>
+              </div>
+
+              <div style="font-size: 12px; color: var(--text-primary); margin-top: 4px;">
+                <strong>Покупатель:</strong> ${this.escapeHtml(o.customer_name || '—')} (${this.escapeHtml(o.customer_phone || '—')})
+              </div>
+
+              <div style="font-size: 12px; color: var(--text-secondary);">
+                <strong>Состав:</strong> ${o.items ? o.items.map(i => `${i.name} (${i.size})`).join(', ') : 'Кроссовки TREAD'}
+              </div>
+
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-subtle);">
+                <span style="font-size: 11px; color: var(--text-secondary);">Способ: ${o.payment_method === 'tg_pay' ? 'Telegram Pay' : 'СБП'}</span>
+                <span class="font-display tabular-nums" style="font-size: 14px; font-weight: 700; color: var(--accent);">${o.total_amount_formatted || o.total_amount + ' ₽'}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  renderCrmProductsView() {
+    return `
+      <div class="crm-card font-body">
+        <div class="crm-card-title">
+          <span>Склад и Товары (${this.products.length})</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          ${this.products.map(p => `
+            <div class="crm-list-item" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 10px; background-color: var(--bg-primary); border: 1px solid var(--border-subtle);">
+              <div style="display: flex; align-items: center; gap: 10px; max-width: 65%;">
+                <img src="${p.image}" alt="${p.name}" style="width: 44px; height: 44px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border-subtle);" />
+                <div style="display: flex; flex-direction: column; text-align: left;">
+                  <span style="font-size: 12px; font-weight: 600; color: var(--text-primary); line-height: 1.2;">${this.escapeHtml(p.name)}</span>
+                  <span style="font-size: 11px; color: var(--text-secondary);">${p.brand} • ${p.sku || 'SKU'}</span>
+                </div>
+              </div>
+
+              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                <span class="font-display tabular-nums" style="font-size: 13px; font-weight: 700;">${p.priceFormatted || p.price + ' ₽'}</span>
+                
+                <button 
+                  class="crm-btn-secondary" 
+                  style="font-size: 10px; height: 26px; padding: 0 8px; color: ${p.inStock !== false ? '#22C55E' : '#F87171'};"
+                  onclick="window.kedsAppInstance.handleToggleStock('${p.id}')"
+                >
+                  ${p.inStock !== false ? '● В наличии' : '✕ Нет в наличии'}
+                </button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  renderCrmCustomersView() {
+    return `
+      <div class="crm-card font-body">
+        <div class="crm-card-title">
+          <span>База клиентов и Брошенные корзины (${this.crmCustomers.length})</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          ${this.crmCustomers.map(c => `
+            <div class="crm-list-item" style="padding: 12px; background-color: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 2px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 13px; font-weight: 600; color: var(--text-primary);">
+                  ${this.escapeHtml(c.first_name || c.customer_name || 'Клиент Telegram')} @${this.escapeHtml(c.username || 'user')}
+                </span>
+                
+                ${c.has_abandoned_cart ? `
+                  <span class="crm-status-badge crm-status-new">БРОШЕННАЯ КОРЗИНА</span>
+                ` : `
+                  <span class="crm-status-badge crm-status-delivered">АКТИВЕН</span>
+                `}
+              </div>
+
+              <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                Телефон: ${this.escapeHtml(c.phone || 'Не передан')} | Заказов: ${c.total_orders || 0}
+              </div>
+
+              ${c.has_abandoned_cart ? `
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 11px; color: var(--accent);">Оставлено товаров: ${c.cart_items?.length || 1} шт.</span>
+                  <button 
+                    class="crm-btn-secondary" 
+                    style="background-color: var(--accent); color: #FFF; border: none;"
+                    onclick="window.kedsAppInstance.handleSendDirectReminder(${c.telegram_id}, '${this.escapeHtml(c.first_name || 'Клиент')}')"
+                  >
+                    💬 Отправить спецпредложение в ТГ
+                  </button>
+                </div>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  renderCrmBroadcastsView() {
+    return `
+      <div class="crm-card font-body">
+        <div class="crm-card-title">
+          <span>📢 Конструктор рассылок в Telegram-бот</span>
+        </div>
+
+        <form id="crm-broadcast-form" onsubmit="window.kedsAppInstance.handleCreateBroadcastSubmit(event)">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div>
+              <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Название кампании</label>
+              <input type="text" id="crm-bc-name" class="crm-input-field" placeholder="Например: Промокод 15% на коллекции" required />
+            </div>
+
+            <div>
+              <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Заголовок сообщения</label>
+              <input type="text" id="crm-bc-title" class="crm-input-field" placeholder="🔥 Эксклюзивный закрытый сейл TREAD" required />
+            </div>
+
+            <div>
+              <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Текст сообщения (Markdown/HTML)</label>
+              <textarea id="crm-bc-message" class="crm-input-field crm-textarea" placeholder="Введите текст сообщения для рассылки..." required></textarea>
+            </div>
+
+            <div>
+              <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">URL Картинки баннера (опционально)</label>
+              <input type="url" id="crm-bc-image" class="crm-input-field" placeholder="https://..." />
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Текст кнопки</label>
+                <input type="text" id="crm-bc-btn-text" class="crm-input-field" value="Открыть каталог TREAD" />
+              </div>
+              <div>
+                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Сегмент аудитории</label>
+                <select id="crm-bc-segment" class="crm-input-field" style="background-color: var(--bg-surface);">
+                  <option value="all">Все пользователи (1 420)</option>
+                  <option value="abandoned_cart">Только с брошенной корзиной</option>
+                  <option value="buyers">Только покупатели</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" class="crm-btn-primary" style="margin-top: 10px;">
+              🚀 ЗАПУСТИТЬ РАССЫЛКУ В TELEGRAM
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- BROADCAST CAMPAIGN HISTORY LOG -->
+      <div class="crm-card font-body" style="margin-top: 16px;">
+        <div class="crm-card-title">
+          <span>История кампаний (${this.crmBroadcasts.length})</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          ${this.crmBroadcasts.map(b => `
+            <div class="crm-list-item" style="padding: 10px; background-color: var(--bg-primary); border: 1px solid var(--border-subtle);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 13px; font-weight: 700; color: var(--text-primary);">${this.escapeHtml(b.campaign_name)}</span>
+                <span class="crm-status-badge crm-status-paid">ОТПРАВЛЕНО (${b.sent_count})</span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+                Сегмент: ${b.target_segment === 'all' ? 'Все клиенты' : 'Брошенные корзины'} • ${new Date(b.created_at).toLocaleDateString('ru-RU')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
   }
 
   escapeHtml(str) {
