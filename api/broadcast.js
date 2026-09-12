@@ -56,45 +56,57 @@ export default async function handler(req, res) {
     let failedCount = 0;
     const errors = [];
 
-    // Send broadcast to all target Telegram IDs
+    // Send broadcast to all target Telegram IDs with automatic photo-to-text fallback
     for (const chatId of target_telegram_ids) {
       try {
-        let apiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
-        let payload = {
-          chat_id: chatId,
-          text: formattedMessage,
-          parse_mode: 'HTML'
-        };
+        let sentSuccessfully = false;
 
-        if (reply_markup) {
-          payload.reply_markup = reply_markup;
-        }
-
-        if (image_url && image_url.startsWith('http')) {
-          apiUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
-          payload = {
+        // 1. Try sending as Photo if image_url is provided
+        if (image_url && image_url.trim().startsWith('http')) {
+          const photoPayload = {
             chat_id: chatId,
-            photo: image_url,
+            photo: image_url.trim(),
             caption: formattedMessage,
             parse_mode: 'HTML'
           };
-          if (reply_markup) {
-            payload.reply_markup = reply_markup;
+          if (reply_markup) photoPayload.reply_markup = reply_markup;
+
+          const photoRes = await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(photoPayload)
+          });
+          const photoData = await photoRes.json();
+          if (photoData.ok) {
+            successCount++;
+            sentSuccessfully = true;
+          } else {
+            console.warn('[Broadcast Warning] sendPhoto failed, falling back to text:', photoData.description);
           }
         }
 
-        const telegramRes = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        // 2. Fallback to standard text sendMessage if photo was not sent or failed
+        if (!sentSuccessfully) {
+          const textPayload = {
+            chat_id: chatId,
+            text: formattedMessage,
+            parse_mode: 'HTML'
+          };
+          if (reply_markup) textPayload.reply_markup = reply_markup;
 
-        const data = await telegramRes.json();
-        if (data.ok) {
-          successCount++;
-        } else {
-          failedCount++;
-          errors.push({ chat_id: chatId, error: data.description || 'Telegram send error' });
+          const textRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(textPayload)
+          });
+          const textData = await textRes.json();
+
+          if (textData.ok) {
+            successCount++;
+          } else {
+            failedCount++;
+            errors.push({ chat_id: chatId, error: textData.description || 'Telegram send error' });
+          }
         }
       } catch (err) {
         failedCount++;
