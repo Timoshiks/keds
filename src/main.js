@@ -217,6 +217,21 @@ class KedsApp {
     return ['Все', ...combined];
   }
 
+  normalizeSizeObject(s) {
+    if (!s) return { eu: '42 EU', quantity: 0, inStock: false };
+    if (typeof s === 'string') {
+      const eu = s.includes('EU') ? s.trim() : `${s.trim()} EU`;
+      return { eu, quantity: 5, inStock: true };
+    }
+    const eu = s.eu ? (s.eu.includes('EU') ? s.eu.trim() : `${s.eu.trim()} EU`) : (s.size || '42 EU');
+    const quantity = s.quantity !== undefined && s.quantity !== null 
+      ? parseInt(s.quantity, 10) 
+      : (s.inStock === false ? 0 : 5);
+    const validQty = isNaN(quantity) ? 0 : Math.max(0, quantity);
+    const inStock = s.inStock !== false && validQty > 0;
+    return { eu, quantity: validQty, inStock, us: s.us };
+  }
+
   openFilterSheet() {
     this.draftBrands = [...this.selectedBrands];
     this.draftSize = this.selectedFilterSize;
@@ -506,8 +521,9 @@ class KedsApp {
 
   openProductSheet(product) {
     this.activeProduct = product;
-    const defaultSizeObj = product.sizes.find(s => s.inStock) || product.sizes[0];
-    this.selectedSize = defaultSizeObj ? defaultSizeObj.eu : '42 EU';
+    const sizes = (product.sizes || []).map(s => this.normalizeSizeObject(s));
+    const defaultSizeObj = sizes.find(s => s.inStock && s.quantity > 0) || sizes[0];
+    this.selectedSize = defaultSizeObj ? defaultSizeObj.eu : null;
     this.activeSlide = 0;
     this.updateUrl();
     this.render();
@@ -2337,16 +2353,18 @@ class KedsApp {
           <div class="sheet-size-section">
             <div class="sheet-section-heading">Выберите размер (EU):</div>
             <div class="sheet-size-row">
-              ${product.sizes.map(s => {
-                const isSelected = this.selectedSize === s.eu;
-                const isOutOfStock = !s.inStock;
+              ${(product.sizes || []).map(s => {
+                const norm = this.normalizeSizeObject(s);
+                const isSelected = this.selectedSize === norm.eu;
+                const isOutOfStock = !norm.inStock || norm.quantity <= 0;
+                const stockText = norm.quantity > 0 ? ` (${norm.quantity} шт)` : ' (нет)';
                 return `
                   <button 
                     class="size-chip ${isSelected ? 'selected' : ''} ${isOutOfStock ? 'out-of-stock' : ''}" 
-                    data-size="${s.eu}"
+                    data-size="${norm.eu}"
                     ${isOutOfStock ? 'disabled' : ''}
                   >
-                    ${s.eu}
+                    ${norm.eu}${stockText}
                   </button>
                 `;
               }).join('')}
@@ -2957,13 +2975,12 @@ class KedsApp {
 
                 if (data.invoice_url) {
                   // OPEN TELEGRAM NATIVE INVOICE WINDOW
-                  window.Telegram.WebApp.openInvoice(data.invoice_url, (status) => {
+                  window.Telegram.WebApp.openInvoice(data.invoice_url, async (status) => {
                     if (status === 'paid') {
+                      await this.processOrderCompletion();
                       if (window.Telegram?.WebApp?.HapticFeedback) {
                         window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
                       }
-                      this.cartItems = [];
-                      this.saveStateToLocalStorage();
                       this.setTab('success');
                     } else if (status === 'cancelled') {
                       if (window.Telegram?.WebApp?.HapticFeedback) {
@@ -2999,7 +3016,7 @@ class KedsApp {
     }
 
     // Payment modal submit handlers
-    const handlePaymentComplete = (e) => {
+    const handlePaymentComplete = async (e) => {
       if (e) e.preventDefault();
       if (this.isPaymentProcessing) return;
       this.isPaymentProcessing = true;
@@ -3017,11 +3034,11 @@ class KedsApp {
         }
       }
 
+      await this.processOrderCompletion();
+
       setTimeout(() => {
         this.isPaymentProcessing = false;
         this.isPaymentModalOpen = false;
-        this.cartItems = [];
-        this.saveStateToLocalStorage();
         this.activeTab = 'success';
         if (window.Telegram?.WebApp?.HapticFeedback) {
           window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
@@ -3254,23 +3271,78 @@ class KedsApp {
   }
 
   openAddProductModal() {
+    this.editingProductId = null;
+    this.editingProductSizes = [
+      { eu: '40 EU', quantity: 3, inStock: true },
+      { eu: '41 EU', quantity: 5, inStock: true },
+      { eu: '42 EU', quantity: 5, inStock: true },
+      { eu: '43 EU', quantity: 3, inStock: true },
+      { eu: '44 EU', quantity: 2, inStock: true }
+    ];
+    this.isAddProductModalOpen = true;
+    this.render();
+  }
+
+  openEditProductModal(productId) {
+    const prod = this.products.find(p => p.id === productId);
+    if (!prod) return;
+    this.editingProductId = productId;
+    this.editingProductSizes = (prod.sizes || []).map(s => this.normalizeSizeObject(s));
+    if (this.editingProductSizes.length === 0) {
+      this.editingProductSizes = [
+        { eu: '40 EU', quantity: 3, inStock: true },
+        { eu: '41 EU', quantity: 5, inStock: true },
+        { eu: '42 EU', quantity: 5, inStock: true },
+        { eu: '43 EU', quantity: 3, inStock: true },
+        { eu: '44 EU', quantity: 2, inStock: true }
+      ];
+    }
     this.isAddProductModalOpen = true;
     this.render();
   }
 
   closeAddProductModal() {
     this.isAddProductModalOpen = false;
+    this.editingProductId = null;
+    this.render();
+  }
+
+  handleSizeQtyInputChange(index, val) {
+    if (this.editingProductSizes && this.editingProductSizes[index]) {
+      const q = Math.max(0, parseInt(val, 10) || 0);
+      this.editingProductSizes[index].quantity = q;
+      this.editingProductSizes[index].inStock = q > 0;
+    }
+  }
+
+  handleRemoveSizeRow(index) {
+    if (this.editingProductSizes) {
+      this.editingProductSizes.splice(index, 1);
+      this.render();
+    }
+  }
+
+  handleAddSizeRow() {
+    const newSize = prompt('Введите размер (например, 42.5 EU или 46 EU):', '45 EU');
+    if (!newSize) return;
+    const clean = newSize.trim().includes('EU') ? newSize.trim() : `${newSize.trim()} EU`;
+    if (!this.editingProductSizes) this.editingProductSizes = [];
+    if (this.editingProductSizes.some(s => s.eu === clean)) {
+      alert('Такой размер уже есть в списке!');
+      return;
+    }
+    this.editingProductSizes.push({ eu: clean, quantity: 3, inStock: true });
     this.render();
   }
 
   async handleAddProductSubmit(e) {
     if (e) e.preventDefault();
     const name = document.getElementById('new-prod-name')?.value?.trim();
-    const brand = document.getElementById('new-prod-brand')?.value || 'Jordan';
+    const brand = document.getElementById('new-prod-brand')?.value?.trim() || 'Jordan';
     const sku = document.getElementById('new-prod-sku')?.value?.trim();
     const priceRaw = document.getElementById('new-prod-price')?.value;
+    const oldPriceRaw = document.getElementById('new-prod-oldprice')?.value;
     const image = document.getElementById('new-prod-image')?.value?.trim();
-    const sizesRaw = document.getElementById('new-prod-sizes')?.value || '40 EU, 41 EU, 42 EU, 43 EU, 44 EU';
 
     if (!name || !priceRaw) {
       alert('Заполните название и цену товара!');
@@ -3278,35 +3350,148 @@ class KedsApp {
     }
 
     const price = parseFloat(priceRaw);
-    const sizeList = sizesRaw.split(',').map(s => {
-      const clean = s.trim();
-      return clean.includes('EU') ? clean : `${clean} EU`;
-    }).filter(Boolean);
+    const oldPrice = oldPriceRaw ? parseFloat(oldPriceRaw) : null;
 
-    const newProduct = {
-      id: 'prod_' + Date.now(),
-      name,
-      brand,
-      sku: sku || 'SKU-' + Math.floor(1000 + Math.random() * 9000),
-      price,
-      priceFormatted: new Intl.NumberFormat('ru-RU').format(price) + ' ₽',
-      image: image || 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=800&q=80',
-      sizes: sizeList.map(eu => ({ eu, inStock: true })),
-      inStock: true,
-      category: brand,
-      created_at: new Date().toISOString()
-    };
+    if (this.editingProductSizes) {
+      this.editingProductSizes.forEach((s, idx) => {
+        const inputEl = document.getElementById(`prod-size-qty-${idx}`);
+        if (inputEl) {
+          const val = Math.max(0, parseInt(inputEl.value, 10) || 0);
+          s.quantity = val;
+          s.inStock = val > 0;
+        }
+      });
+    }
 
-    this.products.unshift(newProduct);
-    await dbUpsertProduct(newProduct);
+    const sizeList = (this.editingProductSizes && this.editingProductSizes.length > 0)
+      ? this.editingProductSizes
+      : [
+          { eu: '40 EU', quantity: 3, inStock: true },
+          { eu: '41 EU', quantity: 5, inStock: true },
+          { eu: '42 EU', quantity: 5, inStock: true },
+          { eu: '43 EU', quantity: 3, inStock: true },
+          { eu: '44 EU', quantity: 2, inStock: true }
+        ];
+
+    const hasAnyStock = sizeList.some(s => s.quantity > 0 && s.inStock);
+
+    if (this.editingProductId) {
+      const prod = this.products.find(p => p.id === this.editingProductId);
+      if (prod) {
+        prod.name = name;
+        prod.brand = brand;
+        prod.sku = sku || prod.sku;
+        prod.price = price;
+        prod.priceFormatted = new Intl.NumberFormat('ru-RU').format(price) + ' ₽';
+        if (oldPrice) {
+          prod.oldPrice = oldPrice;
+          prod.oldPriceFormatted = new Intl.NumberFormat('ru-RU').format(oldPrice) + ' ₽';
+        } else {
+          delete prod.oldPrice;
+          delete prod.oldPriceFormatted;
+        }
+        if (image) prod.image = image;
+        prod.sizes = sizeList;
+        prod.inStock = hasAnyStock;
+        prod.is_in_stock = hasAnyStock;
+        prod.category = brand;
+
+        await dbUpsertProduct(prod);
+        alert(`✅ Товар "${name}" успешно обновлен!`);
+      }
+    } else {
+      const newProduct = {
+        id: 'prod_' + Date.now(),
+        name,
+        brand,
+        sku: sku || 'SKU-' + Math.floor(1000 + Math.random() * 9000),
+        price,
+        priceFormatted: new Intl.NumberFormat('ru-RU').format(price) + ' ₽',
+        oldPrice: oldPrice || null,
+        oldPriceFormatted: oldPrice ? new Intl.NumberFormat('ru-RU').format(oldPrice) + ' ₽' : null,
+        image: image || 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=800&q=80',
+        sizes: sizeList,
+        inStock: hasAnyStock,
+        is_in_stock: hasAnyStock,
+        category: brand,
+        created_at: new Date().toISOString()
+      };
+
+      this.products.unshift(newProduct);
+      await dbUpsertProduct(newProduct);
+      alert(`🎉 Товар "${name}" успешно добавлен в базу и каталог магазина!`);
+    }
+
     this.isAddProductModalOpen = false;
+    this.editingProductId = null;
 
     if (window.Telegram?.WebApp?.HapticFeedback) {
       window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
     }
 
-    alert(`🎉 Товар "${name}" успешно добавлен в базу и каталог магазина!`);
     this.render();
+  }
+
+  async decrementStockForOrder(cartItems) {
+    if (!cartItems || cartItems.length === 0) return;
+
+    for (const item of cartItems) {
+      const prodId = item.product?.id || item.id;
+      const prod = this.products.find(p => p.id === prodId);
+      if (!prod || !prod.sizes) continue;
+
+      const orderedSize = item.selectedSize;
+      let updated = false;
+
+      prod.sizes = prod.sizes.map(s => {
+        const norm = this.normalizeSizeObject(s);
+        const match = orderedSize && (
+          norm.eu === orderedSize || 
+          norm.eu.replace(/\s*EU/i, '').trim() === orderedSize.replace(/\s*EU/i, '').trim()
+        );
+        if (match) {
+          const newQty = Math.max(0, norm.quantity - (item.quantity || 1));
+          updated = true;
+          return {
+            ...norm,
+            quantity: newQty,
+            inStock: newQty > 0
+          };
+        }
+        return norm;
+      });
+
+      if (updated) {
+        const hasStock = prod.sizes.some(s => s.quantity > 0 && s.inStock);
+        prod.inStock = hasStock;
+        prod.is_in_stock = hasStock;
+        await dbUpsertProduct(prod);
+      }
+    }
+  }
+
+  async processOrderCompletion() {
+    const currentCart = [...this.cartItems];
+    if (currentCart.length === 0) return;
+
+    const totalPrice = currentCart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
+    const orderData = {
+      id: 'ORD-' + Math.floor(100000 + Math.random() * 900000),
+      telegramUser: this.telegramUser,
+      customerName: this.customerName || (this.telegramUser ? `${this.telegramUser.first_name || ''} ${this.telegramUser.last_name || ''}`.trim() : 'Покупатель'),
+      customerPhone: this.customerPhone || '',
+      cartItems: currentCart,
+      totalPrice: totalPrice,
+      totalPriceFormatted: new Intl.NumberFormat('ru-RU').format(totalPrice) + ' ₽',
+      deliveryType: this.deliveryType || 'cdek',
+      paymentMethod: this.paymentMethod || 'sbp'
+    };
+
+    await dbSaveOrder(orderData);
+    await this.decrementStockForOrder(currentCart);
+
+    this.cartItems = [];
+    this.saveStateToLocalStorage();
   }
 
   async handleDeleteProduct(id) {
@@ -3698,7 +3883,7 @@ class KedsApp {
         <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 12px;">
           ${this.products.map(p => `
             <div class="crm-list-item" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 10px; background-color: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-card, 4px);">
-              <div style="display: flex; align-items: center; gap: 10px; max-width: 60%;">
+              <div style="display: flex; align-items: center; gap: 10px; max-width: 55%;">
                 <img src="${p.image}" alt="${p.name}" style="width: 44px; height: 44px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border-subtle); flex-shrink: 0;" />
                 <div style="display: flex; flex-direction: column; text-align: left;">
                   <span style="font-size: 12px; font-weight: 600; color: var(--text-primary); line-height: 1.2;">${this.escapeHtml(p.name)}</span>
@@ -3706,22 +3891,31 @@ class KedsApp {
                 </div>
               </div>
 
-              <div style="display: flex; flex-direction: row; align-items: center; gap: 8px;">
-                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+              <div style="display: flex; flex-direction: row; align-items: center; gap: 6px;">
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px; margin-right: 4px;">
                   <span class="font-display tabular-nums" style="font-size: 13px; font-weight: 700;">${p.priceFormatted || p.price + ' ₽'}</span>
                   
                   <button 
                     class="crm-btn-secondary" 
-                    style="font-size: 10px; height: 26px; padding: 0 8px; color: ${p.inStock !== false ? '#22C55E' : '#F87171'};"
+                    style="font-size: 10px; height: 24px; padding: 0 6px; color: ${p.inStock !== false ? '#22C55E' : '#F87171'};"
                     onclick="window.kedsAppInstance.handleToggleStock('${p.id}')"
                   >
-                    ${p.inStock !== false ? '● В наличии' : '✕ Нет в наличии'}
+                    ${p.inStock !== false ? '● В наличии' : '✕ Нет'}
                   </button>
                 </div>
 
                 <button 
                   class="crm-btn-secondary" 
-                  style="font-size: 12px; height: 26px; width: 28px; padding: 0; color: #EF4444; border-color: rgba(239,68,68,0.3);"
+                  style="font-size: 11px; height: 28px; padding: 0 8px; color: var(--accent); border-color: rgba(255,85,0,0.4);"
+                  title="Редактировать товар"
+                  onclick="window.kedsAppInstance.openEditProductModal('${p.id}')"
+                >
+                  ✏️ Изменить
+                </button>
+
+                <button 
+                  class="crm-btn-secondary" 
+                  style="font-size: 12px; height: 28px; width: 28px; padding: 0; color: #EF4444; border-color: rgba(239,68,68,0.3);"
                   title="Удалить товар"
                   onclick="window.kedsAppInstance.handleDeleteProduct('${p.id}')"
                 >
@@ -3733,17 +3927,22 @@ class KedsApp {
         </div>
       </div>
 
-      <!-- ADD PRODUCT MODAL DRAWER -->
+      <!-- ADD / EDIT PRODUCT MODAL DRAWER -->
       ${this.isAddProductModalOpen ? this.renderAddProductModal() : ''}
     `;
   }
 
   renderAddProductModal() {
+    const isEdit = Boolean(this.editingProductId);
+    const editingProd = isEdit ? this.products.find(p => p.id === this.editingProductId) : null;
+    const modalTitle = isEdit ? '✏️ Редактирование товара' : '➕ Добавление нового товара';
+    const sizes = this.editingProductSizes || [];
+
     return `
       <div style="position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 16px;">
-        <div class="font-body" style="background-color: var(--bg-surface); border: 1px solid var(--border-focus); border-radius: var(--radius-sheet, 12px); max-width: 480px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 24px; box-shadow: 0 24px 48px rgba(0,0,0,0.8);">
+        <div class="font-body" style="background-color: var(--bg-surface); border: 1px solid var(--border-focus); border-radius: var(--radius-sheet, 12px); max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 24px; box-shadow: 0 24px 48px rgba(0,0,0,0.8);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;">
-            <h3 class="font-display" style="font-size: 16px; font-weight: 700; color: var(--text-primary); margin: 0;">➕ Добавление нового товара</h3>
+            <h3 class="font-display" style="font-size: 16px; font-weight: 700; color: var(--text-primary); margin: 0;">${modalTitle}</h3>
             <button 
               onclick="window.kedsAppInstance.closeAddProductModal()" 
               style="background: none; border: none; color: var(--text-secondary); font-size: 20px; cursor: pointer; padding: 0 4px;"
@@ -3753,18 +3952,19 @@ class KedsApp {
           <form onsubmit="window.kedsAppInstance.handleAddProductSubmit(event)" style="display: flex; flex-direction: column; gap: 14px;">
             <div>
               <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Название модели *</label>
-              <input type="text" id="new-prod-name" class="crm-input-field" placeholder="Например: Air Jordan 1 High OG 'Chicago'" required />
+              <input type="text" id="new-prod-name" class="crm-input-field" value="${this.escapeHtml(editingProd?.name || '')}" placeholder="Например: Air Jordan 1 High OG 'Chicago'" required />
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
-                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Бренд (выберите или введите свой) *</label>
+                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Бренд *</label>
                 <input 
                   type="text" 
                   id="new-prod-brand" 
                   class="crm-input-field" 
                   list="brand-suggestions-list" 
-                  placeholder="Например: Balenciaga, Jordan, Nike..." 
+                  value="${this.escapeHtml(editingProd?.brand || '')}"
+                  placeholder="Balenciaga, Jordan, Nike..." 
                   required 
                 />
                 <datalist id="brand-suggestions-list">
@@ -3774,30 +3974,72 @@ class KedsApp {
 
               <div>
                 <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Цена (₽) *</label>
-                <input type="number" id="new-prod-price" class="crm-input-field" placeholder="42500" required />
+                <input type="number" id="new-prod-price" class="crm-input-field" value="${editingProd?.price || ''}" placeholder="42500" required />
               </div>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
-                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Артикул / SKU</label>
-                <input type="text" id="new-prod-sku" class="crm-input-field" placeholder="DZ5485-612" />
+                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Старая цена (₽)</label>
+                <input type="number" id="new-prod-oldprice" class="crm-input-field" value="${editingProd?.oldPrice || ''}" placeholder="48000" />
               </div>
 
               <div>
-                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Размеры (через запятую)</label>
-                <input type="text" id="new-prod-sizes" class="crm-input-field" value="40 EU, 41 EU, 42 EU, 43 EU, 44 EU" />
+                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Артикул / SKU</label>
+                <input type="text" id="new-prod-sku" class="crm-input-field" value="${this.escapeHtml(editingProd?.sku || '')}" placeholder="DZ5485-612" />
               </div>
             </div>
 
             <div>
               <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">URL фото товара</label>
-              <input type="url" id="new-prod-image" class="crm-input-field" placeholder="https://..." />
+              <input type="url" id="new-prod-image" class="crm-input-field" value="${this.escapeHtml(editingProd?.image || '')}" placeholder="https://..." />
             </div>
 
-            <div style="display: flex; gap: 10px; margin-top: 16px;">
+            <!-- DYNAMIC SIZE INVENTORY STOCK EDITOR -->
+            <div style="background: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">Размеры и остатки на складе</span>
+                <button 
+                  type="button" 
+                  class="crm-btn-secondary" 
+                  style="font-size: 10px; height: 26px; padding: 0 8px; color: var(--accent); border-color: rgba(255,85,0,0.4);"
+                  onclick="window.kedsAppInstance.handleAddSizeRow()"
+                >
+                  ➕ Добавить размер
+                </button>
+              </div>
+
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; max-height: 180px; overflow-y: auto;">
+                ${sizes.map((s, idx) => `
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: 4px;">
+                    <span style="font-size: 12px; font-weight: 600; color: var(--text-primary);">${s.eu}</span>
+                    
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <input 
+                        type="number" 
+                        id="prod-size-qty-${idx}" 
+                        value="${s.quantity}" 
+                        min="0" 
+                        style="width: 44px; height: 26px; font-size: 12px; font-weight: 600; text-align: center; background: #000; color: #fff; border: 1px solid var(--border-subtle); border-radius: 3px;"
+                        onchange="window.kedsAppInstance.handleSizeQtyInputChange(${idx}, this.value)"
+                      />
+                      <span style="font-size: 10px; color: var(--text-secondary);">шт</span>
+
+                      <button 
+                        type="button" 
+                        style="background: none; border: none; color: #EF4444; font-size: 14px; cursor: pointer; padding: 0 2px; margin-left: 2px;"
+                        title="Удалить этот размер"
+                        onclick="window.kedsAppInstance.handleRemoveSizeRow(${idx})"
+                      >×</button>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
               <button type="submit" class="crm-btn-primary" style="flex: 1;">
-                💾 СОХРАНИТЬ ТОВАР В БАЗУ
+                💾 ${isEdit ? 'СОХРАНИТЬ ИЗМЕНЕНИЯ' : 'СОХРАНИТЬ ТОВАР В БАЗУ'}
               </button>
               <button type="button" class="crm-btn-secondary" onclick="window.kedsAppInstance.closeAddProductModal()">
                 Отмена
