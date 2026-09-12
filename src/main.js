@@ -621,6 +621,8 @@ class KedsApp {
 
   renderFloatingHotbar() {
     if (
+      this.activeTab === 'crm' ||
+      !this.isTelegramWebApp() ||
       this.activeTab === 'cart' ||
       this.activeTab === 'checkout' || 
       this.activeTab === 'success' ||

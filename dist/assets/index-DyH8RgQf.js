@@ -49,7 +49,7 @@
           </span>
         </div>
       </div>
-    `:""}renderFloatingHotbar(){if(this.activeTab==="cart"||this.activeTab==="checkout"||this.activeTab==="success"||this.isPaymentModalOpen||this.isBranchDrawerOpen||this.activeProduct||this.isFilterSheetOpen||this.isLiveSearchOpen||this.activeInfoSheet)return"";const e=this.cartItems.reduce((i,s)=>i+s.quantity,0),t=[{id:"catalog",label:"Каталог"},{id:"search",label:"Поиск"},{id:"cart",label:"Корзина",count:e},{id:"about",label:"Инфо"}];return this.isAdminAuthenticated&&t.push({id:"crm",label:"CRM"}),`
+    `:""}renderFloatingHotbar(){if(this.activeTab==="crm"||!this.isTelegramWebApp()||this.activeTab==="cart"||this.activeTab==="checkout"||this.activeTab==="success"||this.isPaymentModalOpen||this.isBranchDrawerOpen||this.activeProduct||this.isFilterSheetOpen||this.isLiveSearchOpen||this.activeInfoSheet)return"";const e=this.cartItems.reduce((i,s)=>i+s.quantity,0),t=[{id:"catalog",label:"Каталог"},{id:"search",label:"Поиск"},{id:"cart",label:"Корзина",count:e},{id:"about",label:"Инфо"}];return this.isAdminAuthenticated&&t.push({id:"crm",label:"CRM"}),`
       <!-- UNIFIED FLOATING TAB BAR COMPONENT WITH POSITIONING WRAPPER -->
       <div class="floating-island-wrapper font-body">
         <nav class="floating-island-capsule font-body" aria-label="Панель навигации">
