@@ -4,6 +4,7 @@ import {
   isSupabaseConfigured,
   dbFetchProducts,
   dbUpsertProduct,
+  dbDeleteProduct,
   dbFetchOrders,
   dbSaveOrder,
   dbUpdateOrderStatus,
@@ -108,6 +109,7 @@ class KedsApp {
     // CRM Admin Protection & Supabase States
     this.isAdminAuthenticated = sessionStorage.getItem('tread_admin_auth') === 'true';
     this.adminPinError = false;
+    this.isAddProductModalOpen = false;
     this.activeCrmSubTab = urlParams.get('crmTab') || 'analytics'; // 'analytics', 'orders', 'products', 'customers', 'broadcasts'
     this.crmOrders = [];
     this.crmCustomers = [];
@@ -3244,6 +3246,79 @@ class KedsApp {
     }
   }
 
+  openAddProductModal() {
+    this.isAddProductModalOpen = true;
+    this.render();
+  }
+
+  closeAddProductModal() {
+    this.isAddProductModalOpen = false;
+    this.render();
+  }
+
+  async handleAddProductSubmit(e) {
+    if (e) e.preventDefault();
+    const name = document.getElementById('new-prod-name')?.value?.trim();
+    const brand = document.getElementById('new-prod-brand')?.value || 'Jordan';
+    const sku = document.getElementById('new-prod-sku')?.value?.trim();
+    const priceRaw = document.getElementById('new-prod-price')?.value;
+    const image = document.getElementById('new-prod-image')?.value?.trim();
+    const sizesRaw = document.getElementById('new-prod-sizes')?.value || '40 EU, 41 EU, 42 EU, 43 EU, 44 EU';
+
+    if (!name || !priceRaw) {
+      alert('Заполните название и цену товара!');
+      return;
+    }
+
+    const price = parseFloat(priceRaw);
+    const sizeList = sizesRaw.split(',').map(s => {
+      const clean = s.trim();
+      return clean.includes('EU') ? clean : `${clean} EU`;
+    }).filter(Boolean);
+
+    const newProduct = {
+      id: 'prod_' + Date.now(),
+      name,
+      brand,
+      sku: sku || 'SKU-' + Math.floor(1000 + Math.random() * 9000),
+      price,
+      priceFormatted: new Intl.NumberFormat('ru-RU').format(price) + ' ₽',
+      image: image || 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=800&q=80',
+      sizes: sizeList.map(eu => ({ eu, inStock: true })),
+      inStock: true,
+      category: brand,
+      created_at: new Date().toISOString()
+    };
+
+    this.products.unshift(newProduct);
+    await dbUpsertProduct(newProduct);
+    this.isAddProductModalOpen = false;
+
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+    }
+
+    alert(`🎉 Товар "${name}" успешно добавлен в базу и каталог магазина!`);
+    this.render();
+  }
+
+  async handleDeleteProduct(id) {
+    const prod = this.products.find(p => p.id === id);
+    if (!prod) return;
+
+    const confirmDel = confirm(`Вы уверены, что хотите полностью удалить товар "${prod.name}" из базы данных?`);
+    if (!confirmDel) return;
+
+    this.products = this.products.filter(p => p.id !== id);
+    await dbDeleteProduct(id);
+
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.notificationOccurred('warning');
+    }
+
+    this.render();
+  }
+
   async handleSendDirectReminder(telegramId, customerName) {
     const confirmSend = confirm(`Отправить персональное предложение и напоминание в Telegram для ${customerName || telegramId}?`);
     if (!confirmSend) return;
@@ -3602,34 +3677,124 @@ class KedsApp {
   renderCrmProductsView() {
     return `
       <div class="crm-card font-body">
-        <div class="crm-card-title">
+        <div class="crm-card-title" style="display: flex; justify-content: space-between; align-items: center;">
           <span>Склад и Товары (${this.products.length})</span>
+          <button 
+            class="crm-btn-primary" 
+            style="font-size: 11px; height: 32px; width: auto; padding: 0 12px;"
+            onclick="window.kedsAppInstance.openAddProductModal()"
+          >
+            ➕ ДОБАВИТЬ ТОВАР
+          </button>
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 12px;">
           ${this.products.map(p => `
-            <div class="crm-list-item" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 10px; background-color: var(--bg-primary); border: 1px solid var(--border-subtle);">
-              <div style="display: flex; align-items: center; gap: 10px; max-width: 65%;">
-                <img src="${p.image}" alt="${p.name}" style="width: 44px; height: 44px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border-subtle);" />
+            <div class="crm-list-item" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 10px; background-color: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-card, 4px);">
+              <div style="display: flex; align-items: center; gap: 10px; max-width: 60%;">
+                <img src="${p.image}" alt="${p.name}" style="width: 44px; height: 44px; object-fit: cover; border-radius: 2px; border: 1px solid var(--border-subtle); flex-shrink: 0;" />
                 <div style="display: flex; flex-direction: column; text-align: left;">
                   <span style="font-size: 12px; font-weight: 600; color: var(--text-primary); line-height: 1.2;">${this.escapeHtml(p.name)}</span>
                   <span style="font-size: 11px; color: var(--text-secondary);">${p.brand} • ${p.sku || 'SKU'}</span>
                 </div>
               </div>
 
-              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
-                <span class="font-display tabular-nums" style="font-size: 13px; font-weight: 700;">${p.priceFormatted || p.price + ' ₽'}</span>
-                
+              <div style="display: flex; flex-direction: row; align-items: center; gap: 8px;">
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                  <span class="font-display tabular-nums" style="font-size: 13px; font-weight: 700;">${p.priceFormatted || p.price + ' ₽'}</span>
+                  
+                  <button 
+                    class="crm-btn-secondary" 
+                    style="font-size: 10px; height: 26px; padding: 0 8px; color: ${p.inStock !== false ? '#22C55E' : '#F87171'};"
+                    onclick="window.kedsAppInstance.handleToggleStock('${p.id}')"
+                  >
+                    ${p.inStock !== false ? '● В наличии' : '✕ Нет в наличии'}
+                  </button>
+                </div>
+
                 <button 
                   class="crm-btn-secondary" 
-                  style="font-size: 10px; height: 26px; padding: 0 8px; color: ${p.inStock !== false ? '#22C55E' : '#F87171'};"
-                  onclick="window.kedsAppInstance.handleToggleStock('${p.id}')"
+                  style="font-size: 12px; height: 26px; width: 28px; padding: 0; color: #EF4444; border-color: rgba(239,68,68,0.3);"
+                  title="Удалить товар"
+                  onclick="window.kedsAppInstance.handleDeleteProduct('${p.id}')"
                 >
-                  ${p.inStock !== false ? '● В наличии' : '✕ Нет в наличии'}
+                  🗑
                 </button>
               </div>
             </div>
           `).join('')}
+        </div>
+      </div>
+
+      <!-- ADD PRODUCT MODAL DRAWER -->
+      ${this.isAddProductModalOpen ? this.renderAddProductModal() : ''}
+    `;
+  }
+
+  renderAddProductModal() {
+    return `
+      <div style="position: fixed; inset: 0; z-index: 9999; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; padding: 16px;">
+        <div class="font-body" style="background-color: var(--bg-surface); border: 1px solid var(--border-focus); border-radius: var(--radius-sheet, 12px); max-width: 480px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 24px; box-shadow: 0 24px 48px rgba(0,0,0,0.8);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 12px;">
+            <h3 class="font-display" style="font-size: 16px; font-weight: 700; color: var(--text-primary); margin: 0;">➕ Добавление нового товара</h3>
+            <button 
+              onclick="window.kedsAppInstance.closeAddProductModal()" 
+              style="background: none; border: none; color: var(--text-secondary); font-size: 20px; cursor: pointer; padding: 0 4px;"
+            >×</button>
+          </div>
+
+          <form onsubmit="window.kedsAppInstance.handleAddProductSubmit(event)" style="display: flex; flex-direction: column; gap: 14px;">
+            <div>
+              <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Название модели *</label>
+              <input type="text" id="new-prod-name" class="crm-input-field" placeholder="Например: Air Jordan 1 High OG 'Chicago'" required />
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Бренд *</label>
+                <select id="new-prod-brand" class="crm-input-field" style="height: 38px;">
+                  <option value="Jordan">Jordan</option>
+                  <option value="Nike">Nike</option>
+                  <option value="Adidas">Adidas</option>
+                  <option value="New Balance">New Balance</option>
+                  <option value="ASICS">ASICS</option>
+                  <option value="Salomon">Salomon</option>
+                  <option value="Puma">Puma</option>
+                </select>
+              </div>
+
+              <div>
+                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Цена (₽) *</label>
+                <input type="number" id="new-prod-price" class="crm-input-field" placeholder="42500" required />
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Артикул / SKU</label>
+                <input type="text" id="new-prod-sku" class="crm-input-field" placeholder="DZ5485-612" />
+              </div>
+
+              <div>
+                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Размеры (через запятую)</label>
+                <input type="text" id="new-prod-sizes" class="crm-input-field" value="40 EU, 41 EU, 42 EU, 43 EU, 44 EU" />
+              </div>
+            </div>
+
+            <div>
+              <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">URL фото товара</label>
+              <input type="url" id="new-prod-image" class="crm-input-field" placeholder="https://..." />
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 16px;">
+              <button type="submit" class="crm-btn-primary" style="flex: 1;">
+                💾 СОХРАНИТЬ ТОВАР В БАЗУ
+              </button>
+              <button type="button" class="crm-btn-secondary" onclick="window.kedsAppInstance.closeAddProductModal()">
+                Отмена
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     `;

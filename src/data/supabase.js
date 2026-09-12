@@ -57,6 +57,14 @@ export async function dbUpsertProduct(product) {
   return res ? res[0] : product;
 }
 
+export async function dbDeleteProduct(productId) {
+  if (!isSupabaseConfigured() || !productId) return false;
+  await supabaseFetch(`products?id=eq.${productId}`, {
+    method: 'DELETE'
+  });
+  return true;
+}
+
 // ---------------- ORDERS API ----------------
 export async function dbFetchOrders() {
   if (!isSupabaseConfigured()) return [];
