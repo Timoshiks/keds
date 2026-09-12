@@ -105,7 +105,9 @@ class KedsApp {
     // Empty cart items by default
     this.cartItems = [];
 
-    // CRM & Supabase States (Initialized empty - real data synced from Supabase/Telegram Bot)
+    // CRM Admin Protection & Supabase States
+    this.isAdminAuthenticated = sessionStorage.getItem('tread_admin_auth') === 'true';
+    this.adminPinError = false;
     this.activeCrmSubTab = urlParams.get('crmTab') || 'analytics'; // 'analytics', 'orders', 'products', 'customers', 'broadcasts'
     this.crmOrders = [];
     this.crmCustomers = [];
@@ -571,8 +573,11 @@ class KedsApp {
       { id: 'search', label: 'Поиск' },
       { id: 'cart', label: 'Корзина', count: cartCount },
       { id: 'about', label: 'Инфо' },
-      { id: 'crm', label: 'CRM' },
     ];
+
+    if (this.isAdminAuthenticated) {
+      tabs.push({ id: 'crm', label: 'CRM' });
+    }
 
     return `
       <!-- UNIFIED FLOATING TAB BAR COMPONENT WITH POSITIONING WRAPPER -->
@@ -3230,7 +3235,78 @@ class KedsApp {
     }
   }
 
+  handleAdminLoginSubmit(e) {
+    e.preventDefault();
+    const inputPin = document.getElementById('crm-admin-pin-input')?.value?.trim();
+    const validPin = import.meta.env.VITE_ADMIN_PIN || '7788';
+
+    if (inputPin === validPin) {
+      this.isAdminAuthenticated = true;
+      this.adminPinError = false;
+      sessionStorage.setItem('tread_admin_auth', 'true');
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      }
+      this.render();
+    } else {
+      this.adminPinError = true;
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred('error');
+      }
+      this.render();
+    }
+  }
+
+  handleAdminLogout() {
+    this.isAdminAuthenticated = false;
+    this.adminPinError = false;
+    sessionStorage.removeItem('tread_admin_auth');
+    this.activeTab = 'catalog';
+    this.updateUrl();
+    this.render();
+  }
+
   renderCrmView() {
+    if (!this.isAdminAuthenticated) {
+      return `
+        <div class="crm-screen-container font-body" style="display: flex; align-items: center; justify-content: center; min-height: 80vh; padding: 24px;">
+          <div style="background-color: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-sheet, 12px); padding: 36px 24px; max-width: 380px; width: 100%; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5);">
+            <div style="font-size: 44px; margin-bottom: 12px;">🔒</div>
+            <h2 class="font-display" style="font-size: 18px; font-weight: 700; color: var(--text-primary); margin: 0 0 8px 0;">Доступ ограничен</h2>
+            <p style="font-size: 12px; color: var(--text-secondary); margin: 0 0 24px 0; line-height: 1.4;">
+              Панель управления TREAD CRM предназначена только для владельцев и администраторов магазина.
+            </p>
+
+            <form onsubmit="window.kedsAppInstance.handleAdminLoginSubmit(event)" style="display: flex; flex-direction: column; gap: 14px;">
+              <div>
+                <input 
+                  type="password" 
+                  id="crm-admin-pin-input" 
+                  class="crm-input-field" 
+                  placeholder="Введите PIN-код админа" 
+                  style="text-align: center; font-size: 16px; letter-spacing: 4px; border-bottom: 2px solid ${this.adminPinError ? '#EF4444' : 'var(--border-focus)'};"
+                  required
+                  autofocus
+                />
+              </div>
+
+              ${this.adminPinError ? `
+                <div style="font-size: 11px; color: #EF4444; font-weight: 600;">✕ Неверный PIN-код. Попробуйте еще раз.</div>
+              ` : ''}
+
+              <button type="submit" class="crm-btn-primary" style="margin-top: 8px;">
+                🔓 ВОЙТИ В CRM
+              </button>
+            </form>
+
+            <div style="font-size: 10px; color: var(--text-secondary); margin-top: 20px;">
+              ПИН-код по умолчанию: <code style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 2px; color: var(--accent);">7788</code>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
     const supabaseActive = isSupabaseConfigured();
 
     return `
@@ -3243,9 +3319,18 @@ class KedsApp {
               <h1 class="screen-header-title font-body" style="font-size: 16px;">Управление</h1>
             </div>
 
-            <!-- SUPABASE STATUS BADGE -->
-            <div class="crm-status-badge ${supabaseActive ? 'crm-status-paid' : 'crm-status-new'}" style="font-size: 9px;">
-              ${supabaseActive ? '● SUPABASE DB ACTIVE' : '○ DEMO MODE (LOCAL)'}
+            <!-- SUPABASE STATUS BADGE & LOGOUT -->
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div class="crm-status-badge ${supabaseActive ? 'crm-status-paid' : 'crm-status-new'}" style="font-size: 9px;">
+                ${supabaseActive ? '● SUPABASE DB ACTIVE' : '○ DEMO MODE (LOCAL)'}
+              </div>
+              <button 
+                class="crm-btn-secondary" 
+                style="font-size: 10px; height: 26px; padding: 0 8px; border-color: rgba(239,68,68,0.4); color: #F87171;"
+                onclick="window.kedsAppInstance.handleAdminLogout()"
+              >
+                🚪 Выйти
+              </button>
             </div>
           </div>
 
