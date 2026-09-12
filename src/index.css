@@ -3567,6 +3567,36 @@ h1, h2, h3, h4, h5, h6, .font-display {
   border-bottom-color: var(--accent);
 }
 
+/* CRM SELECT & DROPDOWN STYLING FIX */
+select.crm-input-field,
+select.crm-status-badge,
+.crm-card select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  color-scheme: dark;
+  background-color: var(--bg-elevated, #1C1C1C) !important;
+  color: var(--text-primary, #F5F5F5) !important;
+  border: 1px solid var(--border-focus, rgba(255, 255, 255, 0.24)) !important;
+  border-radius: var(--radius-card, 4px) !important;
+  padding: 8px 32px 8px 12px !important;
+  font-family: var(--font-body);
+  font-size: 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 10 center !important;
+  cursor: pointer;
+}
+
+select option,
+select.crm-input-field option,
+select.crm-status-badge option,
+.crm-card select option {
+  background-color: #141414 !important;
+  color: #F5F5F5 !important;
+  padding: 8px !important;
+}
+
 .crm-textarea {
   min-height: 80px;
   resize: vertical;

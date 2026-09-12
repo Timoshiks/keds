@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" fill="none">
+  <rect width="300" height="200" rx="12" fill="#141414"/>
+  <path d="M42 136 C65 118, 125 92, 180 90 C225 88, 258 110, 266 134 C242 154, 175 155, 122 155 C72 155, 52 146, 42 136 Z" fill="#262626" stroke="#A3A3A3" stroke-width="2"/>
+  <path d="M110 120 Q 150 100 200 130 M120 135 Q 160 115 210 120" stroke="#FF5500" stroke-width="3" fill="none"/>
+  <text x="150" y="55" fill="#888888" font-family="sans-serif" font-size="11" font-weight="500" text-anchor="middle">Gel-Kayano 14</text>
+</svg>

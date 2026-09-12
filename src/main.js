@@ -105,102 +105,11 @@ class KedsApp {
     // Empty cart items by default
     this.cartItems = [];
 
-    // CRM & Supabase States
+    // CRM & Supabase States (Initialized empty - real data synced from Supabase/Telegram Bot)
     this.activeCrmSubTab = urlParams.get('crmTab') || 'analytics'; // 'analytics', 'orders', 'products', 'customers', 'broadcasts'
-    this.crmOrders = [
-      {
-        id: 'TR-94821',
-        customer_name: 'Александр Белов',
-        customer_phone: '+375 (29) 612-44-90',
-        telegram_id: 98124712,
-        username: 'alex_belov',
-        total_amount: 42500,
-        total_amount_formatted: '42 500 ₽',
-        status: 'paid',
-        delivery_type: 'post',
-        payment_method: 'tg_pay',
-        items: [{ name: "Travis Scott x Air Jordan 1 Low 'Canary'", size: '42 EU', price: 42500, quantity: 1 }],
-        created_at: new Date(Date.now() - 3600000 * 4).toISOString()
-      },
-      {
-        id: 'TR-94820',
-        customer_name: 'Дмитрий Ковалев',
-        customer_phone: '+375 (33) 890-11-22',
-        telegram_id: 11029384,
-        username: 'dmitry_k',
-        total_amount: 38900,
-        total_amount_formatted: '38 900 ₽',
-        status: 'shipped',
-        delivery_type: 'pickup',
-        payment_method: 'sbp',
-        items: [{ name: "Air Jordan 4 Retro 'Military Black'", size: '43 EU', price: 38900, quantity: 1 }],
-        created_at: new Date(Date.now() - 3600000 * 24).toISOString()
-      },
-      {
-        id: 'TR-94819',
-        customer_name: 'Максим Соколов',
-        customer_phone: '+375 (29) 111-22-33',
-        telegram_id: 77291023,
-        username: 'max_sokolov',
-        total_amount: 27900,
-        total_amount_formatted: '27 900 ₽',
-        status: 'new',
-        delivery_type: 'post',
-        payment_method: 'tg_pay',
-        items: [{ name: "New Balance 1906R 'Triple Black'", size: '42.5 EU', price: 27900, quantity: 1 }],
-        created_at: new Date(Date.now() - 3600000 * 48).toISOString()
-      }
-    ];
-
-    this.crmCustomers = [
-      {
-        telegram_id: 98124712,
-        username: 'alex_belov',
-        first_name: 'Александр',
-        last_name: 'Белов',
-        phone: '+375 (29) 612-44-90',
-        cart_items: [],
-        has_abandoned_cart: false,
-        total_orders: 2,
-        total_spent: 81400
-      },
-      {
-        telegram_id: 10293847,
-        username: 'nikita_t',
-        first_name: 'Никита',
-        last_name: 'Тарасов',
-        phone: '+375 (44) 712-33-00',
-        cart_items: [{ name: "Salomon XT-6 'Black Phantom'", size: '43 EU', price: 28500 }],
-        has_abandoned_cart: true,
-        total_orders: 0,
-        total_spent: 0
-      },
-      {
-        telegram_id: 88291039,
-        username: 'elena_m',
-        first_name: 'Елена',
-        last_name: 'Морозова',
-        phone: '+375 (29) 555-44-11',
-        cart_items: [{ name: "Nike Dunk Low 'UNC Coast'", size: '41 EU', price: 24500 }],
-        has_abandoned_cart: true,
-        total_orders: 1,
-        total_spent: 16800
-      }
-    ];
-
-    this.crmBroadcasts = [
-      {
-        id: 'b1',
-        campaign_name: 'Скидки 15% на коллекции Jordan',
-        title: '🔥 Эксклюзивная скидка 15% на Jordan 1 & 4!',
-        message: 'Привет! До конца недели у нас действует промокод JORDAN15 на все модели Jordan в наличии. Забирай свой размер!',
-        image_url: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=800&q=80',
-        target_segment: 'all',
-        status: 'sent',
-        sent_count: 1420,
-        created_at: new Date(Date.now() - 3600000 * 72).toISOString()
-      }
-    ];
+    this.crmOrders = [];
+    this.crmCustomers = [];
+    this.crmBroadcasts = [];
 
     // Load saved cart and profile state from localStorage / TMA CloudStorage
     this.loadStateFromLocalStorage();
@@ -3296,35 +3205,28 @@ class KedsApp {
           message,
           image_url,
           button_text,
-          button_url,
+          image_url: image,
+          button_text: btnText || 'Открыть каталог TREAD',
+          button_url: window.location.href,
           target_telegram_ids: targetIds
         })
       });
 
       const data = await res.json();
-      const newCampaign = {
-        id: 'bc_' + Date.now(),
-        campaign_name,
-        title,
-        message,
-        image_url,
-        target_segment,
-        status: 'sent',
-        sent_count: data.delivered_count || targetIds.length || 1,
-        created_at: new Date().toISOString()
-      };
-
-      this.crmBroadcasts.unshift(newCampaign);
-      await dbSaveBroadcast(newCampaign);
-
-      if (window.Telegram?.WebApp?.HapticFeedback) {
-        window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+      if (data.ok) {
+        newBc.status = 'sent';
+        newBc.sent_count = data.delivered_count || targetIds.length || 1;
+        alert(`🎉 Рассолка успешно отправлена! Доставлено пользователям: ${newBc.sent_count}`);
+      } else {
+        newBc.status = 'failed';
+        alert(`Ошибка при отправке рассылки: ${data.error || 'Проверьте настройки Telegram-бота'}`);
       }
 
-      alert(`Рассылка "${campaign_name}" успешно запущена! Доставлено: ${data.delivered_count || targetIds.length || 1}`);
+      this.crmBroadcasts.unshift(newBc);
+      await dbSaveBroadcast(newBc);
       this.render();
     } catch (err) {
-      alert('Ошибка при отправке рассылки: ' + err.message);
+      alert(`Сбой сервера при вызове рассылки: ${err.message}`);
     }
   }
 
@@ -3437,7 +3339,13 @@ class KedsApp {
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 12px;">
-          ${this.crmOrders.map(o => `
+          ${this.crmOrders.length === 0 ? `
+            <div style="padding: 32px 16px; text-align: center; color: var(--text-secondary); border: 1px dashed var(--border-subtle); border-radius: var(--radius-card, 4px);">
+              <div style="font-size: 24px; margin-bottom: 8px;">📦</div>
+              <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">Заказов пока нет</div>
+              <div style="font-size: 11px;">Новые заказы клиентов из Telegram автоматически отобразятся здесь.</div>
+            </div>
+          ` : this.crmOrders.map(o => `
             <div class="crm-list-item" style="padding: 12px; background-color: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: var(--radius-card, 2px);">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
@@ -3522,7 +3430,13 @@ class KedsApp {
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 10px;">
-          ${this.crmCustomers.map(c => `
+          ${this.crmCustomers.length === 0 ? `
+            <div style="padding: 32px 16px; text-align: center; color: var(--text-secondary); border: 1px dashed var(--border-subtle); border-radius: var(--radius-card, 4px);">
+              <div style="font-size: 24px; margin-bottom: 8px;">👥</div>
+              <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">Клиентов пока нет</div>
+              <div style="font-size: 11px;">Пользователи, открывающие вашего Telegram-бота, автоматически сохранятся здесь.</div>
+            </div>
+          ` : this.crmCustomers.map(c => `
             <div class="crm-list-item" style="padding: 12px; background-color: var(--bg-primary); border: 1px solid var(--border-subtle); border-radius: 2px;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-size: 13px; font-weight: 600; color: var(--text-primary);">
