@@ -210,6 +210,13 @@ class KedsApp {
     return result;
   }
 
+  getAvailableBrands() {
+    const defaultBrands = ['Nike', 'Jordan', 'New Balance', 'Adidas', 'ASICS', 'Salomon', 'Puma'];
+    const dbBrands = this.products ? this.products.map(p => p.brand).filter(Boolean) : [];
+    const combined = Array.from(new Set([...defaultBrands, ...dbBrands]));
+    return ['Все', ...combined];
+  }
+
   openFilterSheet() {
     this.draftBrands = [...this.selectedBrands];
     this.draftSize = this.selectedFilterSize;
@@ -749,7 +756,7 @@ class KedsApp {
             <!-- QUICK BRAND SCROLL TABS -->
             <div class="brand-chips-wrapper font-body">
               <div class="brand-chips">
-                ${BRANDS.map(brand => {
+                ${this.getAvailableBrands().map(brand => {
                   const isSelected = brand === 'Все' ? this.selectedBrands.length === 0 : this.selectedBrands.includes(brand);
                   return `
                     <button 
@@ -3751,16 +3758,18 @@ class KedsApp {
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
               <div>
-                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Бренд *</label>
-                <select id="new-prod-brand" class="crm-input-field" style="height: 38px;">
-                  <option value="Jordan">Jordan</option>
-                  <option value="Nike">Nike</option>
-                  <option value="Adidas">Adidas</option>
-                  <option value="New Balance">New Balance</option>
-                  <option value="ASICS">ASICS</option>
-                  <option value="Salomon">Salomon</option>
-                  <option value="Puma">Puma</option>
-                </select>
+                <label style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase;">Бренд (выберите или введите свой) *</label>
+                <input 
+                  type="text" 
+                  id="new-prod-brand" 
+                  class="crm-input-field" 
+                  list="brand-suggestions-list" 
+                  placeholder="Например: Balenciaga, Jordan, Nike..." 
+                  required 
+                />
+                <datalist id="brand-suggestions-list">
+                  ${this.getAvailableBrands().filter(b => b !== 'Все').map(b => `<option value="${b}"></option>`).join('')}
+                </datalist>
               </div>
 
               <div>
