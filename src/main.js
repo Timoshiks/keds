@@ -703,14 +703,6 @@ class KedsApp {
   }
 
   render() {
-    const isTg = this.isTelegramWebApp();
-
-    // Block store access in standard web browser outside Telegram (only CRM or Telegram lock screen allowed)
-    if (!isTg && this.activeTab !== 'crm') {
-      this.appContainer.innerHTML = this.renderBrowserBlockScreen();
-      return;
-    }
-
     const hasFiltersActive = this.hasActiveFilters();
 
     this.appContainer.innerHTML = `
