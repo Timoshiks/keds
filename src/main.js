@@ -3255,29 +3255,55 @@ class KedsApp {
 
   async handleCreateBroadcastSubmit(e) {
     if (e) e.preventDefault();
-    const form = e.target;
-    const campaign_name = form.querySelector('#crm-bc-name')?.value || 'Акция TREAD';
-    const title = form.querySelector('#crm-bc-title')?.value || 'Скидка на каталог';
-    const message = form.querySelector('#crm-bc-message')?.value || '';
-    const image_url = form.querySelector('#crm-bc-image')?.value || '';
-    const button_text = form.querySelector('#crm-bc-btn-text')?.value || 'Открыть каталог';
-    const button_url = form.querySelector('#crm-bc-btn-url')?.value || window.location.href;
-    const target_segment = form.querySelector('#crm-bc-segment')?.value || 'all';
+    const form = e?.target || document.getElementById('crm-broadcast-form');
+    const campaign_name = form?.querySelector('#crm-bc-name')?.value || 'Акция TREAD';
+    const title = form?.querySelector('#crm-bc-title')?.value || 'Скидка на каталог';
+    const message = form?.querySelector('#crm-bc-message')?.value || '';
+    const image_url = form?.querySelector('#crm-bc-image')?.value || '';
+    const button_text = form?.querySelector('#crm-bc-btn-text')?.value || 'Открыть каталог TREAD';
+    const button_url = window.location.href;
+    const target_segment = form?.querySelector('#crm-bc-segment')?.value || 'all';
 
     let targetIds = this.crmCustomers.map(c => c.telegram_id).filter(Boolean);
     if (target_segment === 'abandoned_cart') {
       targetIds = this.crmCustomers.filter(c => c.has_abandoned_cart).map(c => c.telegram_id).filter(Boolean);
+    } else if (target_segment === 'buyers') {
+      targetIds = this.crmCustomers.filter(c => c.total_orders > 0).map(c => c.telegram_id).filter(Boolean);
     }
 
     if (targetIds.length === 0 && this.telegramUser?.id) {
       targetIds = [this.telegramUser.id];
     }
 
-    const submitBtn = form.querySelector('button[type="submit"]');
+    if (targetIds.length === 0) {
+      const manualId = prompt('В базе клиентов пока нет пользователей.\n\nВведите ваш Telegram ID для тестовой рассылки (или откройте бота в Telegram с телефона):');
+      if (manualId && !isNaN(parseInt(manualId.trim(), 10))) {
+        targetIds = [parseInt(manualId.trim(), 10)];
+      } else {
+        alert('Отмена: Нет получателей для рассылки. Откройте бота в Telegram хотя бы 1 раз, чтобы ваш профиль попал в базу!');
+        return;
+      }
+    }
+
+    const submitBtn = form?.querySelector('button[type="submit"]');
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerText = 'ОТПРАВКА В TELEGRAM...';
+      submitBtn.innerText = '⏳ ОТПРАВКА В TELEGRAM...';
     }
+
+    const newBc = {
+      id: 'bc_' + Date.now(),
+      campaign_name,
+      title,
+      message,
+      image_url: image_url || null,
+      button_text,
+      button_url,
+      target_segment,
+      status: 'sending',
+      sent_count: 0,
+      created_at: new Date().toISOString()
+    };
 
     try {
       const res = await fetch('/api/broadcast', {
@@ -3288,28 +3314,31 @@ class KedsApp {
           message,
           image_url,
           button_text,
-          image_url: image,
-          button_text: btnText || 'Открыть каталог TREAD',
-          button_url: window.location.href,
+          button_url,
           target_telegram_ids: targetIds
         })
       });
 
       const data = await res.json();
-      if (data.ok) {
+      if (res.ok && (data.success || data.ok)) {
         newBc.status = 'sent';
-        newBc.sent_count = data.delivered_count || targetIds.length || 1;
-        alert(`🎉 Рассолка успешно отправлена! Доставлено пользователям: ${newBc.sent_count}`);
+        newBc.sent_count = data.delivered_count || targetIds.length;
+        alert(`🎉 Рассылка успешно отправлена!\n\nДоставлено пользователям в Telegram: ${newBc.sent_count}`);
       } else {
         newBc.status = 'failed';
-        alert(`Ошибка при отправке рассылки: ${data.error || 'Проверьте настройки Telegram-бота'}`);
+        alert(`⚠️ Ошибка при отправке рассылки: ${data.error || (data.errors && data.errors[0]?.error) || 'Проверьте токен бота'}`);
       }
 
       this.crmBroadcasts.unshift(newBc);
       await dbSaveBroadcast(newBc);
-      this.render();
     } catch (err) {
-      alert(`Сбой сервера при вызове рассылки: ${err.message}`);
+      alert(`Сбой при вызове рассылки: ${err.message}`);
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = '🚀 ЗАПУСТИТЬ РАССЫЛКУ В TELEGRAM';
+      }
+      this.render();
     }
   }
 
