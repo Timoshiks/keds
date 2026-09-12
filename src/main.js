@@ -302,6 +302,23 @@ class KedsApp {
         if (!this.customerPhone && tgUser.phone_number) {
           this.customerPhone = tgUser.phone_number;
         }
+
+        // Save customer session in Supabase DB immediately
+        dbSaveCustomerSession(
+          this.telegramUser,
+          this.cartItems.map(i => ({ id: i.product.id, name: i.product.name, size: i.selectedSize, price: i.product.price, quantity: i.quantity })),
+          this.customerName,
+          this.customerPhone
+        ).then(() => {
+          if (this.activeTab === 'crm') {
+            dbFetchCustomers().then(custs => {
+              if (custs) {
+                this.crmCustomers = custs;
+                this.render();
+              }
+            });
+          }
+        }).catch(err => console.warn('Customer session save warning:', err));
       }
     }
   }
@@ -320,6 +337,15 @@ class KedsApp {
 
       if (window.Telegram?.WebApp?.CloudStorage) {
         window.Telegram.WebApp.CloudStorage.setItem('tread_cart', JSON.stringify(this.cartItems));
+      }
+
+      if (this.telegramUser && this.telegramUser.id) {
+        dbSaveCustomerSession(
+          this.telegramUser,
+          this.cartItems.map(i => ({ id: i.product.id, name: i.product.name, size: i.selectedSize, price: i.product.price, quantity: i.quantity })),
+          this.customerName,
+          this.customerPhone
+        ).catch(err => console.warn('Customer state sync warning:', err));
       }
     } catch (err) {
       console.warn('Error saving state to localStorage:', err);
