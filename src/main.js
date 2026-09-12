@@ -381,7 +381,75 @@ class KedsApp {
     }
   }
 
+  isTelegramWebApp() {
+    if (typeof window === 'undefined') return false;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('tg') === 'true' || urlParams.get('tgwebapp') === 'true') return true;
+
+    const tg = window.Telegram?.WebApp;
+    if (!tg) return false;
+
+    const hasInitData = Boolean(tg.initData && tg.initData.length > 0);
+    const hasUser = Boolean(tg.initDataUnsafe && Object.keys(tg.initDataUnsafe).length > 0 && tg.initDataUnsafe.user);
+    const hasValidPlatform = Boolean(tg.platform && tg.platform !== 'unknown');
+
+    return hasInitData || hasUser || hasValidPlatform;
+  }
+
+  renderBrowserBlockScreen() {
+    return `
+      <div class="mobile-container font-body" style="display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; background-color: var(--bg-primary, #0A0A0A);">
+        <div style="background-color: var(--bg-surface, #141414); border: 1px solid var(--border-subtle, rgba(255,255,255,0.08)); border-radius: var(--radius-sheet, 12px); padding: 40px 24px; max-width: 400px; width: 100%; text-align: center; box-shadow: 0 24px 48px rgba(0,0,0,0.6);">
+          
+          <!-- LOGO BRANDING -->
+          <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 24px;">
+            <span class="font-display" style="font-size: 24px; font-weight: 800; letter-spacing: -0.03em; color: var(--text-primary);">TREAD</span>
+            <span style="font-size: 10px; background-color: var(--accent, #FF5500); color: #FFF; padding: 2px 6px; font-weight: 700; font-family: var(--font-display);">STORE</span>
+          </div>
+
+          <div style="font-size: 48px; margin-bottom: 16px;">📱</div>
+
+          <h2 class="font-display" style="font-size: 18px; font-weight: 700; color: var(--text-primary); margin: 0 0 10px 0; line-height: 1.3;">
+            Магазин доступен только в Telegram
+          </h2>
+
+          <p class="font-body" style="font-size: 13px; color: var(--text-secondary); margin: 0 0 28px 0; line-height: 1.5;">
+            Покупки, примерка и оформление заказов TREAD работают исключительно внутри нашего Telegram-бота.
+          </p>
+
+          <a 
+            href="https://t.me/keds_bot" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            class="crm-btn-primary font-body" 
+            style="text-decoration: none; height: 48px; font-size: 13px; border-radius: var(--radius-btn, 0px); display: flex; align-items: center; justify-content: center; width: 100%; text-transform: uppercase;"
+          >
+            💬 ОТКРЫТЬ В TELEGRAM
+          </a>
+
+          <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--border-subtle);">
+            <button 
+              onclick="window.kedsAppInstance.setTab('crm')" 
+              style="background: none; border: none; color: var(--text-secondary); font-size: 11px; font-family: var(--font-body); cursor: pointer; text-decoration: underline;"
+            >
+              🔒 Панель управления CRM (для админов)
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   setTab(tab) {
+    if (!this.isTelegramWebApp() && tab !== 'crm') {
+      this.activeTab = 'crm';
+      this.activeProduct = null;
+      this.updateUrl();
+      this.render();
+      return;
+    }
+
     this.activeTab = tab;
     this.activeProduct = null;
     if (tab === 'checkout') {
@@ -607,6 +675,14 @@ class KedsApp {
   }
 
   render() {
+    const isTg = this.isTelegramWebApp();
+
+    // Block store access in standard web browser outside Telegram (only CRM or Telegram lock screen allowed)
+    if (!isTg && this.activeTab !== 'crm') {
+      this.appContainer.innerHTML = this.renderBrowserBlockScreen();
+      return;
+    }
+
     const hasFiltersActive = this.hasActiveFilters();
 
     this.appContainer.innerHTML = `
@@ -3261,7 +3337,7 @@ class KedsApp {
     this.isAdminAuthenticated = false;
     this.adminPinError = false;
     sessionStorage.removeItem('tread_admin_auth');
-    this.activeTab = 'catalog';
+    this.activeTab = 'crm';
     this.updateUrl();
     this.render();
   }
