@@ -44,12 +44,12 @@ export default async function handler(req, res) {
     
     // Construct inline keyboard button if specified
     let reply_markup = undefined;
-    if (button_text && button_url) {
-      reply_markup = JSON.stringify({
+    if (button_text && button_url && button_url.startsWith('http')) {
+      reply_markup = {
         inline_keyboard: [
           [{ text: button_text, url: button_url }]
         ]
-      });
+      };
     }
 
     let successCount = 0;
@@ -63,9 +63,12 @@ export default async function handler(req, res) {
         let payload = {
           chat_id: chatId,
           text: formattedMessage,
-          parse_mode: 'HTML',
-          reply_markup
+          parse_mode: 'HTML'
         };
+
+        if (reply_markup) {
+          payload.reply_markup = reply_markup;
+        }
 
         if (image_url && image_url.startsWith('http')) {
           apiUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
@@ -73,9 +76,11 @@ export default async function handler(req, res) {
             chat_id: chatId,
             photo: image_url,
             caption: formattedMessage,
-            parse_mode: 'HTML',
-            reply_markup
+            parse_mode: 'HTML'
           };
+          if (reply_markup) {
+            payload.reply_markup = reply_markup;
+          }
         }
 
         const telegramRes = await fetch(apiUrl, {
@@ -89,7 +94,7 @@ export default async function handler(req, res) {
           successCount++;
         } else {
           failedCount++;
-          errors.push({ chat_id: chatId, error: data.description });
+          errors.push({ chat_id: chatId, error: data.description || 'Telegram send error' });
         }
       } catch (err) {
         failedCount++;
@@ -98,7 +103,7 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json({
-      success: true,
+      success: successCount > 0,
       total_targeted: target_telegram_ids.length,
       delivered_count: successCount,
       failed_count: failedCount,

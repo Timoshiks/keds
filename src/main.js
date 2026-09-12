@@ -3346,13 +3346,16 @@ class KedsApp {
       });
 
       const data = await res.json();
-      if (res.ok && (data.success || data.ok)) {
+      if (res.ok && data.success && data.delivered_count > 0) {
         newBc.status = 'sent';
-        newBc.sent_count = data.delivered_count || targetIds.length;
+        newBc.sent_count = data.delivered_count;
         alert(`🎉 Рассылка успешно отправлена!\n\nДоставлено пользователям в Telegram: ${newBc.sent_count}`);
       } else {
         newBc.status = 'failed';
-        alert(`⚠️ Ошибка при отправке рассылки: ${data.error || (data.errors && data.errors[0]?.error) || 'Проверьте токен бота'}`);
+        const errDetails = data.errors && data.errors.length > 0
+          ? data.errors.map(e => `ID ${e.chat_id}: ${e.error}`).join('\n')
+          : (data.error || 'Проверьте токен бота или запустите бота с телефона');
+        alert(`⚠️ Ошибка при отправке рассылки:\n\n${errDetails}`);
       }
 
       this.crmBroadcasts.unshift(newBc);
